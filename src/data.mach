@@ -1,0 +1,86 @@
+# deterministic benchmark inputs, shared by every kernel
+#
+# mirrors c/kernels.c exactly: same sizes, same PRNG, same fill order. both
+# implementations therefore see bit-identical arrays, which is what makes the
+# reported checksums directly comparable.
+
+# working-set sizes, shared with c/bench.h
+pub val N_SMALL:   i64 = 65536;   # 256 KB as f32 -- L2 resident
+pub val N_BYTES:   i64 = 262144;  # 256 KB as u8
+pub val N_STREAM:  i64 = 2097152; # 8 MB per array, 24 MB across the triad
+pub val MAT_N:     i64 = 96;      # 96x96 f32 matmul
+pub val MAT_ELEMS: i64 = MAT_N * MAT_N;
+
+pub var f32_a:   [N_SMALL]f32;
+pub var f32_b:   [N_SMALL]f32;
+pub var f32_out: [N_SMALL]f32;
+pub var f64_a:   [N_SMALL]f64;
+pub var f64_b:   [N_SMALL]f64;
+pub var i32_a:   [N_SMALL]i32;
+pub var i32_b:   [N_SMALL]i32;
+pub var i64_out: [N_SMALL]i64;
+pub var u8_a:    [N_BYTES]u8;
+pub var st_a:    [N_STREAM]f32;
+pub var st_b:    [N_STREAM]f32;
+pub var st_out:  [N_STREAM]f32;
+pub var mat_a:   [MAT_ELEMS]f32;
+pub var mat_b:   [MAT_ELEMS]f32;
+pub var mat_out: [MAT_ELEMS]f32;
+
+var rng: u64 = 0x9E3779B97F4A7C15;
+
+# advance the xorshift64* generator
+# ---
+# ret: next pseudo-random 64-bit value
+fun next() u64 {
+    var x: u64 = rng;
+    x = x ^ (x >> 12);
+    x = x ^ (x << 25);
+    x = x ^ (x >> 27);
+    rng = x;
+    ret x * 0x2545F4914F6CDD1D;
+}
+
+# next value reduced to a byte
+fun next_byte() u64 {
+    ret next() & 0xFF;
+}
+
+# fill every input array from the fixed seed
+# ---
+# the draw order must stay in lockstep with bench_data_init in c/kernels.c
+pub fun init() {
+    rng = 0x9E3779B97F4A7C15;
+
+    var i: i64 = 0;
+    for (i < N_SMALL) {
+        # low byte scaled to [0,1) keeps float sums well inside f32 precision
+        f32_a[i] = (next_byte()::f32) * 0.00390625;
+        f32_b[i] = (next_byte()::f32) * 0.00390625;
+        f64_a[i] = (next_byte()::f64) * 0.00390625;
+        f64_b[i] = (next_byte()::f64) * 0.00390625;
+        i32_a[i] = next_byte()::i32;
+        i32_b[i] = next_byte()::i32;
+        i = i + 1;
+    }
+
+    i = 0;
+    for (i < N_BYTES) {
+        u8_a[i] = next_byte()::u8;
+        i = i + 1;
+    }
+
+    i = 0;
+    for (i < N_STREAM) {
+        st_a[i] = (next_byte()::f32) * 0.00390625;
+        st_b[i] = (next_byte()::f32) * 0.00390625;
+        i = i + 1;
+    }
+
+    i = 0;
+    for (i < MAT_ELEMS) {
+        mat_a[i] = (next_byte()::f32) * 0.00390625;
+        mat_b[i] = (next_byte()::f32) * 0.00390625;
+        i = i + 1;
+    }
+}

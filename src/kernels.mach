@@ -1,0 +1,159 @@
+# the benchmark kernels
+#
+# each kernel mirrors its counterpart in c/kernels.c statement for statement.
+# they live in their own module so the timing loop in bench.harness cannot
+# inline through them or hoist them out.
+
+use d: bench.data;
+use h: bench.harness;
+
+# contiguous f32 multiply-add into a distinct output -- the textbook
+# autovectorisation target
+fun k_f32_saxpy() f64 {
+    val alpha: f32 = 1.0009765625;
+    var i: i64 = 0;
+    for (i < d.N_SMALL) {
+        d.f32_out[i] = alpha * d.f32_a[i] + d.f32_b[i];
+        i = i + 1;
+    }
+    ret d.f32_out[0]::f64 + d.f32_out[d.N_SMALL / 2]::f64 + d.f32_out[d.N_SMALL - 1]::f64;
+}
+
+# f64 reduction: vectorising this reassociates the sum, so the checksum is
+# compared with a relative tolerance rather than bit-exactly
+fun k_f64_dot() f64 {
+    var acc: f64 = 0.0;
+    var i: i64 = 0;
+    for (i < d.N_SMALL) {
+        acc = acc + d.f64_a[i] * d.f64_b[i];
+        i = i + 1;
+    }
+    ret acc;
+}
+
+# f32 sum of squares -- reduction with a single multiply per element
+fun k_f32_norm() f64 {
+    var acc: f32 = 0.0;
+    var i: i64 = 0;
+    for (i < d.N_SMALL) {
+        acc = acc + d.f32_a[i] * d.f32_a[i];
+        i = i + 1;
+    }
+    ret acc::f64;
+}
+
+# integer multiply-accumulate; inputs stay in [0,255] so the i64 total is
+# exactly representable as f64
+fun k_i32_madd() f64 {
+    var acc: i64 = 0;
+    var i: i64 = 0;
+    for (i < d.N_SMALL) {
+        acc = acc + (d.i32_a[i]::i64) * (d.i32_b[i]::i64);
+        i = i + 1;
+    }
+    ret acc::f64;
+}
+
+# byte scan with a compare-accumulate -- vectorises to a packed compare
+fun k_u8_count() f64 {
+    var n: i64 = 0;
+    var i: i64 = 0;
+    for (i < d.N_BYTES) {
+        if (d.u8_a[i] > 127) { n = n + 1; }
+        i = i + 1;
+    }
+    ret n::f64;
+}
+
+# FNV-1a over the byte array. each step depends on the previous one, so this is
+# the control case: a correct vectoriser must leave it scalar
+fun k_u64_fnv1a() f64 {
+    var hash: u64 = 0xCBF29CE484222325; # FNV-1a 64-bit offset basis
+    var i: i64 = 0;
+    for (i < d.N_BYTES) {
+        hash = hash ^ (d.u8_a[i]::u64);
+        hash = hash * 0x100000001B3;    # FNV-1a 64-bit prime
+        i = i + 1;
+    }
+    ret (hash % 1000000007)::f64;
+}
+
+# data-dependent branch -- tests whether the branch becomes a predicated select
+# or stays a mispredicting jump
+fun k_i32_filter_sum() f64 {
+    var acc: i64 = 0;
+    var i: i64 = 0;
+    for (i < d.N_SMALL) {
+        if (d.i32_a[i] > d.i32_b[i]) { acc = acc + d.i32_a[i]::i64; }
+        i = i + 1;
+    }
+    ret acc::f64;
+}
+
+# loop-carried dependency: each output needs the previous one
+fun k_i64_prefix_sum() f64 {
+    var acc: i64 = 0;
+    var i: i64 = 0;
+    for (i < d.N_SMALL) {
+        acc = acc + d.i32_a[i]::i64;
+        d.i64_out[i] = acc;
+        i = i + 1;
+    }
+    ret d.i64_out[d.N_SMALL - 1]::f64;
+}
+
+# naive ikj matmul -- the inner loop is a scalar-times-vector accumulate
+fun k_f32_matmul() f64 {
+    var z: i64 = 0;
+    for (z < d.MAT_ELEMS) {
+        d.mat_out[z] = 0.0;
+        z = z + 1;
+    }
+
+    var i: i64 = 0;
+    for (i < d.MAT_N) {
+        var k: i64 = 0;
+        for (k < d.MAT_N) {
+            val aik: f32 = d.mat_a[i * d.MAT_N + k];
+            var j: i64 = 0;
+            for (j < d.MAT_N) {
+                d.mat_out[i * d.MAT_N + j] = d.mat_out[i * d.MAT_N + j] + aik * d.mat_b[k * d.MAT_N + j];
+                j = j + 1;
+            }
+            k = k + 1;
+        }
+        i = i + 1;
+    }
+
+    ret d.mat_out[0]::f64 + d.mat_out[d.MAT_ELEMS - 1]::f64;
+}
+
+# STREAM triad over a 24 MB working set -- bandwidth bound, so both sides should
+# converge regardless of how well the loop vectorises
+fun k_stream_triad() f64 {
+    val scalar: f32 = 3.0;
+    var i: i64 = 0;
+    for (i < d.N_STREAM) {
+        d.st_out[i] = d.st_a[i] + scalar * d.st_b[i];
+        i = i + 1;
+    }
+    ret d.st_out[0]::f64 + d.st_out[d.N_STREAM / 2]::f64 + d.st_out[d.N_STREAM - 1]::f64;
+}
+
+# the registry, in the same order as c/kernels.c.
+# adding a kernel means bumping REGISTRY_LEN and adding the matching entry in
+# c/kernels.c -- the two registries must stay name-for-name identical.
+pub val REGISTRY_LEN: i64 = 10;
+
+pub val REGISTRY: [REGISTRY_LEN]h.Kernel = [REGISTRY_LEN]h.Kernel{
+    h.Kernel{name: "f32_saxpy",      fn: k_f32_saxpy,      iters: 100, tol: 0.0},
+    h.Kernel{name: "f64_dot",        fn: k_f64_dot,        iters: 100, tol: 0.0},
+    h.Kernel{name: "f32_norm",       fn: k_f32_norm,       iters: 100, tol: 0.001},
+    h.Kernel{name: "i32_madd",       fn: k_i32_madd,       iters: 100, tol: 0.0},
+    h.Kernel{name: "u8_count",       fn: k_u8_count,       iters: 50,  tol: 0.0},
+    h.Kernel{name: "u64_fnv1a",      fn: k_u64_fnv1a,      iters: 10,  tol: 0.0},
+    h.Kernel{name: "i32_filter_sum", fn: k_i32_filter_sum, iters: 100, tol: 0.0},
+    h.Kernel{name: "i64_prefix_sum", fn: k_i64_prefix_sum, iters: 100, tol: 0.0},
+    h.Kernel{name: "f32_matmul",     fn: k_f32_matmul,     iters: 10,  tol: 0.0001},
+    h.Kernel{name: "stream_triad",   fn: k_stream_triad,   iters: 5,   tol: 0.0}
+};

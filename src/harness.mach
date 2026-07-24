@@ -1,0 +1,89 @@
+# timing harness
+#
+# emits one machine-readable line per kernel:
+#
+#     <name>\t<best_ns>\t<iters>\t<checksum>
+#
+# best_ns is the fastest of `reps` timed repetitions, each repetition being
+# `iters` back-to-back kernel invocations. minimum rather than mean, because the
+# fastest observed run is the one least polluted by scheduling noise.
+#
+# c/bench.c emits the identical format.
+
+use std.types.string.str;
+use print: std.print;
+use time: std.chrono.time;
+
+# default timed repetitions per kernel; override with the binary's first
+# positional argument
+pub val DEFAULT_REPS: i64 = 7;
+
+# a kernel runs its loop once over its inputs and returns a checksum.
+# checksums are f64 so one comparison rule covers both integer and float
+# kernels; integer kernels keep their value under 2^53 so it stays exact.
+pub def KernelFun: fun() f64;
+
+# a registered benchmark
+# ---
+# name:  identifier shared with the C registry
+# fn:    the kernel itself
+# iters: inner invocations per timed rep
+# tol:   relative difference permitted against the C checksum. most kernels are
+#        exactly order-independent on this input data and demand a bit-identical
+#        result (0); the exceptions are f32 reductions, where vectorising
+#        reassociates the sum and f32's 24-bit mantissa cannot absorb it.
+pub rec Kernel {
+    name:  str;
+    fn:    KernelFun;
+    iters: i64;
+    tol:   f64;
+}
+
+# keeps the optimiser from discarding kernel results it can prove unused
+pub var sink: f64 = 0.0;
+
+# run a kernel `iters` times and return the elapsed nanoseconds
+# ---
+# k:   kernel to run
+# ret: elapsed time for the whole batch, in nanoseconds
+fun time_kernel(k: Kernel) i64 {
+    var acc: f64 = 0.0;
+    var last: f64 = 0.0;
+
+    val t0: time.Time = time.monotonic();
+    var i: i64 = 0;
+    for (i < k.iters) {
+        last = k.fn();
+        acc = acc + last;
+        i = i + 1;
+    }
+    val t1: time.Time = time.monotonic();
+
+    # acc only exists to stop the optimiser discarding the calls; the reported
+    # checksum is the kernel's own return value, exact rather than averaged
+    sink = acc;
+    checksum = last;
+    ret time.time_sub(t1, t0);
+}
+
+# checksum produced by the most recent time_kernel call
+var checksum: f64 = 0.0;
+
+# benchmark one kernel and write its result line
+# ---
+# k:    kernel to measure
+# reps: timed repetitions to take the minimum over
+pub fun run(k: Kernel, reps: i64) {
+    # one untimed warmup pass to fault in pages and settle the caches
+    time_kernel(k);
+
+    var best: i64 = 0;
+    var r: i64 = 0;
+    for (r < reps) {
+        val ns: i64 = time_kernel(k);
+        if (r == 0 || ns < best) { best = ns; }
+        r = r + 1;
+    }
+
+    print.printlnf("{}\t{}\t{}\t{}\t{}", k.name, best, k.iters, checksum, k.tol);
+}
