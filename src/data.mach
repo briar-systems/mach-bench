@@ -10,6 +10,24 @@ pub val N_BYTES:   i64 = 262144;  # 256 KB as u8
 pub val N_STREAM:  i64 = 2097152; # 8 MB per array, 24 MB across the triad
 pub val MAT_N:     i64 = 96;      # 96x96 f32 matmul
 pub val MAT_ELEMS: i64 = MAT_N * MAT_N;
+pub val N_PART:     i64 = 16384;  # particles, 24 bytes each
+pub val N_SORT:     i64 = 4096;   # sort scratch, sorted in blocks
+pub val SORT_BLOCK: i64 = 64;     # insertion-sort block length
+pub val N_QUERY:    i64 = 8192;   # binary-search queries
+pub val FIB_N:      i64 = 27;     # naive recursive fibonacci depth
+pub val NEEDLE_AT:  i64 = 200000; # offset in u8_a the search needle comes from
+pub val NEEDLE_LEN: i64 = 8;
+
+# a particle in array-of-structures layout; c/bench.h declares the same struct
+# so the two agree on field order and stride
+pub rec Particle {
+    x:  f32;
+    y:  f32;
+    z:  f32;
+    vx: f32;
+    vy: f32;
+    vz: f32;
+}
 
 pub var f32_a:   [N_SMALL]f32;
 pub var f32_b:   [N_SMALL]f32;
@@ -26,6 +44,11 @@ pub var st_out:  [N_STREAM]f32;
 pub var mat_a:   [MAT_ELEMS]f32;
 pub var mat_b:   [MAT_ELEMS]f32;
 pub var mat_out: [MAT_ELEMS]f32;
+pub var parts:    [N_PART]Particle;
+pub var chase:    [N_SMALL]i32;    # a single random cycle over [0, N_SMALL)
+pub var sortbuf:  [N_SORT]i32;     # scratch, refilled by the sort kernel
+pub var sorted_a: [N_SMALL]i32;    # strictly ascending: sorted_a[i] == 2*i
+pub var needle:   [NEEDLE_LEN]u8;
 
 var rng: u64 = 0x9E3779B97F4A7C15;
 
@@ -81,6 +104,53 @@ pub fun init() {
     for (i < MAT_ELEMS) {
         mat_a[i] = (next_byte()::f32) * 0.00390625;
         mat_b[i] = (next_byte()::f32) * 0.00390625;
+        i = i + 1;
+    }
+
+    i = 0;
+    for (i < N_PART) {
+        parts[i].x  = (next_byte()::f32) * 0.00390625;
+        parts[i].y  = (next_byte()::f32) * 0.00390625;
+        parts[i].z  = (next_byte()::f32) * 0.00390625;
+        parts[i].vx = (next_byte()::f32) * 0.00390625;
+        parts[i].vy = (next_byte()::f32) * 0.00390625;
+        parts[i].vz = (next_byte()::f32) * 0.00390625;
+        i = i + 1;
+    }
+
+    # sorted_a is strictly ascending, so binary search needs no sort at init
+    i = 0;
+    for (i < N_SMALL) {
+        sorted_a[i] = (2 * i)::i32;
+        i = i + 1;
+    }
+
+    # build a single Hamiltonian cycle over [0, N_SMALL): Fisher-Yates a
+    # permutation, then link each element to its successor. chase[] is walked one
+    # dependent load at a time, so no prefetcher can run ahead of it.
+    # i64_out doubles as the permutation scratch -- it is output-only elsewhere.
+    i = 0;
+    for (i < N_SMALL) {
+        i64_out[i] = i;
+        i = i + 1;
+    }
+    i = N_SMALL - 1;
+    for (i > 0) {
+        val j: i64 = (next() % ((i + 1)::u64))::i64;
+        val t: i64 = i64_out[i];
+        i64_out[i] = i64_out[j];
+        i64_out[j] = t;
+        i = i - 1;
+    }
+    i = 0;
+    for (i < N_SMALL) {
+        chase[i64_out[i]] = i64_out[(i + 1) % N_SMALL]::i32;
+        i = i + 1;
+    }
+
+    i = 0;
+    for (i < NEEDLE_LEN) {
+        needle[i] = u8_a[NEEDLE_AT + i];
         i = i + 1;
     }
 }

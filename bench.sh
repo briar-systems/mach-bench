@@ -3,7 +3,8 @@
 #
 # usage: ./bench.sh [options]
 #   --profile <name>  mach profile to build (default: release)
-#   --reps <n>        timed repetitions per kernel (default: 7)
+#   --reps <n>        timed repetitions per kernel, within one binary (default: 7)
+#   --rounds <n>      interleaved passes over every binary (default: 3)
 #   --filter <substr> only report kernels whose name contains <substr>
 #   --native          add a `cc -O3 -march=native` column (host ISA, not baseline)
 #   --fast-math       add a `cc -O3 -ffast-math` column (allows FP reassociation)
@@ -19,17 +20,19 @@ MACH=${MACH:-mach}
 
 PROFILE=release
 REPS=7
+ROUNDS=3
 FILTER=
 WANT_NATIVE=0
 WANT_FAST=0
 WANT_ASM=0
 
-usage() { sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() { awk 'NR>1 && /^#/ {sub(/^# ?/, ""); print; next} NR>1 {exit}' "$0"; }
 
 while [ $# -gt 0 ]; do
     case $1 in
         --profile) PROFILE=$2; shift 2 ;;
         --reps)    REPS=$2; shift 2 ;;
+        --rounds)  ROUNDS=$2; shift 2 ;;
         --filter)  FILTER=$2; shift 2 ;;
         --native)  WANT_NATIVE=1; shift ;;
         --fast-math) WANT_FAST=1; shift ;;
@@ -106,10 +109,19 @@ fi
 MACH_BIN=$(find "$OUT" -type f -path "*/$PROFILE/bin/*" -name 'mach-bench' | head -1)
 [ -n "$MACH_BIN" ] || { echo "bench.sh: mach binary not found under $OUT" >&2; exit 1; }
 
-for v in $VARIANTS; do
-    "$OUT/c/bench-$v" "$REPS" > "$OUT/run/$v.tsv"
+# interleave the binaries round-robin rather than running each to completion in
+# turn. background load drifts over the length of a run, and a block-sequential
+# schedule charges that drift to whichever binary happened to be running --
+# corrupting the ratios, not just the absolute times. round-robin exposes every
+# binary to the same conditions; the reported time is the min across rounds.
+rd=1
+while [ "$rd" -le "$ROUNDS" ]; do
+    for v in $VARIANTS; do
+        "$OUT/c/bench-$v" "$REPS" > "$OUT/run/$v.$rd.tsv"
+    done
+    "$MACH_BIN" "$REPS" > "$OUT/run/mach.$rd.tsv"
+    rd=$((rd + 1))
 done
-"$MACH_BIN" "$REPS" > "$OUT/run/mach.tsv"
 
 MACH_VER=$($MACH info 2>/dev/null | head -1)
 CC_VER=$($CC --version 2>/dev/null | head -1)
@@ -117,7 +129,7 @@ HOST=$($MACH info 2>/dev/null | awk '/^host:/ {print $2}')
 
 # shellcheck disable=SC2086
 awk -v variants="$VARIANTS" -v outdir="$OUT/run" -v filter="$FILTER" \
-    -v machver="$MACH_VER" -v ccver="$CC_VER" -v host="$HOST" \
+    -v rounds="$ROUNDS" -v machver="$MACH_VER" -v ccver="$CC_VER" -v host="$HOST" \
     -v profile="$PROFILE" -v simd="$SIMD" -v reps="$REPS" '
 function human(ns,   u) {
     if (ns < 1000)    { return sprintf("%.1f ns", ns) }
@@ -129,6 +141,14 @@ function rel(a, b) {
     if (a == 0 || b == 0) return 1
     return (a > b ? a - b : b - a) / (a > b ? a : b)
 }
+function subtotal(g,   i, s) {
+    s = sprintf("  %-*s", w, "  geomean")
+    for (i = 1; i <= nv; i++) s = s sprintf("%11s", "")
+    s = s sprintf("%11s", "")
+    for (i = 1; i <= nv; i++)
+        s = s sprintf("%10s", ggn[g, vs[i]] ? sprintf("%.2fx", exp(ggsum[g, vs[i]] / ggn[g, vs[i]])) : "-")
+    print s
+}
 function label(v) {
     if (v == "O2") return "cc -O2"
     if (v == "O3") return "cc -O3"
@@ -139,27 +159,40 @@ function label(v) {
 BEGIN {
     nv = split(variants, vs, " ")
 
-    # read every C variant, then the mach run; first variant fixes row order
+    # read every round of every C variant, then the mach rounds, keeping the
+    # fastest observation per kernel. the first variant of round 1 fixes row
+    # order. spread (slowest/fastest across rounds) flags a contaminated run.
     for (i = 1; i <= nv; i++) {
-        f = outdir "/" vs[i] ".tsv"
+        for (rd = 1; rd <= rounds; rd++) {
+            f = outdir "/" vs[i] "." rd ".tsv"
+            while ((getline line < f) > 0) {
+                split(line, a, "\t")
+                per = a[2] / a[3]
+                key = vs[i] SUBSEP a[1]
+                if (!(key in t) || per < t[key]) t[key] = per
+                if (per > tmax[key]) tmax[key] = per
+                chk[key] = a[4] + 0
+                if (i == 1 && rd == 1) {
+                    order[++n] = a[1]; tol[a[1]] = a[5] + 0; grp[a[1]] = a[6]
+                }
+            }
+            close(f)
+        }
+    }
+    for (rd = 1; rd <= rounds; rd++) {
+        f = outdir "/mach." rd ".tsv"
         while ((getline line < f) > 0) {
             split(line, a, "\t")
             per = a[2] / a[3]
-            t[vs[i], a[1]] = per
-            chk[vs[i], a[1]] = a[4] + 0
-            if (i == 1) { order[++n] = a[1]; tol[a[1]] = a[5] + 0 }
+            if (!(a[1] in mt) || per < mt[a[1]]) mt[a[1]] = per
+            if (per > mtmax[a[1]]) mtmax[a[1]] = per
+            mchk[a[1]] = a[4] + 0
         }
         close(f)
     }
-    while ((getline line < (outdir "/mach.tsv")) > 0) {
-        split(line, a, "\t")
-        mt[a[1]] = a[2] / a[3]
-        mchk[a[1]] = a[4] + 0
-    }
-    close(outdir "/mach.tsv")
 
     printf "\n  mach-bench  ·  %s  ·  %s  ·  %s\n", machver, ccver, host
-    printf "  profile %s (simd=%s)  ·  min of %s reps  ·  C at baseline x86-64\n\n", profile, simd, reps
+    printf "  profile %s (simd=%s)  ·  best of %s rounds x %s reps  ·  C at baseline x86-64\n\n", profile, simd, rounds, reps
 
     w = 16
     line = sprintf("  %-*s", w, "kernel")
@@ -174,18 +207,26 @@ BEGIN {
     for (i = 0; i < rulew; i++) rule = rule "-"
     print "  " rule
 
+    prevgrp = ""
     for (r = 1; r <= n; r++) {
         k = order[r]
         if (filter != "" && index(k, filter) == 0) continue
         shown++
 
-        line = sprintf("  %-*s", w, k)
+        if (grp[k] != prevgrp) {
+            if (prevgrp != "") { subtotal(prevgrp); print "" }
+            printf "  %s\n", grp[k]
+            prevgrp = grp[k]
+        }
+
+        line = sprintf("  %-*s", w, "  " k)
         for (i = 1; i <= nv; i++) line = line sprintf("%11s", human(t[vs[i], k]))
         line = line sprintf("%11s", human(mt[k]))
         for (i = 1; i <= nv; i++) {
             ratio = mt[k] / t[vs[i], k]
             line = line sprintf("%10s", sprintf("%.2fx", ratio))
             gsum[vs[i]] += log(ratio); gn[vs[i]]++
+            ggsum[grp[k], vs[i]] += log(ratio); ggn[grp[k], vs[i]]++
         }
 
         # = bit-identical, ~ within the declared per-kernel tolerance, ! beyond
@@ -198,10 +239,20 @@ BEGIN {
         if (mark == "!") bad++
         line = line sprintf("%5s", mark)
         print line
+
+        # widest round-to-round spread seen on any binary for this kernel
+        sp = mtmax[k] / mt[k]
+        for (i = 1; i <= nv; i++) {
+            s2 = tmax[vs[i], k] / t[vs[i], k]
+            if (s2 > sp) sp = s2
+        }
+        if (sp > noisy) { noisy = sp; noisy_k = k }
     }
 
+    if (prevgrp != "") subtotal(prevgrp)
+
     print "  " rule
-    line = sprintf("  %-*s", w, "geomean")
+    line = sprintf("  %-*s", w, "geomean (all)")
     for (i = 1; i <= nv; i++) line = line sprintf("%11s", "")
     line = line sprintf("%11s", "")
     for (i = 1; i <= nv; i++)
@@ -212,6 +263,8 @@ BEGIN {
     printf "  chk: = bit-identical   ~ within kernel tolerance   ! disagreement\n"
     if (shown == 0) printf "\n  no kernels matched filter \"%s\"\n", filter
     if (bad > 0) printf "\n  WARNING: %d kernel(s) disagree beyond tolerance -- results are not comparable\n", bad
+    if (noisy > 1.25)
+        printf "\n  NOTE: round-to-round spread up to %.2fx (%s) -- machine was busy;\n        ratios survive interleaving but re-run idle for trustworthy absolutes\n", noisy, noisy_k
     print ""
 }' </dev/null
 

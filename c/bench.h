@@ -15,6 +15,20 @@
 #define N_BYTES 262144  // 256 KB as u8
 #define N_STREAM 2097152 // 8 MB per array, 24 MB working set across the triad
 #define MAT_N 96        // 96x96 f32 matmul
+#define N_PART 16384    // particles, 24 bytes each
+#define N_SORT 4096     // sort scratch, sorted in blocks
+#define SORT_BLOCK 64   // insertion-sort block length
+#define N_QUERY 8192    // binary-search queries
+#define FIB_N 27        // naive recursive fibonacci depth
+#define NEEDLE_AT 200000 // offset in u8_a the search needle is copied from
+#define NEEDLE_LEN 8
+
+// a particle in array-of-structures layout; the Mach side declares the same
+// record so the two agree on field order and stride
+typedef struct {
+    float x, y, z;
+    float vx, vy, vz;
+} particle;
 
 // deterministic input data, generated once at startup
 extern float f32_a[N_SMALL];
@@ -32,6 +46,11 @@ extern float st_out[N_STREAM];
 extern float mat_a[MAT_N * MAT_N];
 extern float mat_b[MAT_N * MAT_N];
 extern float mat_out[MAT_N * MAT_N];
+extern particle parts[N_PART];
+extern int32_t chase[N_SMALL];   // a single random cycle over [0, N_SMALL)
+extern int32_t sortbuf[N_SORT];  // scratch, refilled by the sort kernel
+extern int32_t sorted_a[N_SMALL]; // strictly ascending: sorted_a[i] == 2*i
+extern uint8_t needle[NEEDLE_LEN];
 
 // xorshift64* -- the shared PRNG; the Mach side implements the same recurrence
 uint64_t bench_rand(uint64_t *state);
@@ -50,11 +69,14 @@ typedef double (*kernel_fn)(void);
 // vectorising reassociates the sum and f32's 24-bit mantissa cannot absorb the
 // difference. a kernel's tolerance is declared next to the kernel so the
 // runner needs no per-kernel knowledge.
+//
+// group is the table section the kernel is reported under.
 typedef struct {
     const char *name;
     kernel_fn fn;
     int iters; // inner invocations per timed rep
     double tol;
+    const char *group;
 } kernel;
 
 extern const kernel kernels[];

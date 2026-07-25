@@ -32,11 +32,13 @@ pub def KernelFun: fun() f64;
 #        exactly order-independent on this input data and demand a bit-identical
 #        result (0); the exceptions are f32 reductions, where vectorising
 #        reassociates the sum and f32's 24-bit mantissa cannot absorb it.
+# group: the table section the kernel is reported under
 pub rec Kernel {
     name:  str;
     fn:    KernelFun;
     iters: i64;
     tol:   f64;
+    group: str;
 }
 
 # keeps the optimiser from discarding kernel results it can prove unused
@@ -85,5 +87,5 @@ pub fun run(k: Kernel, reps: i64) {
         r = r + 1;
     }
 
-    print.printlnf("{}\t{}\t{}\t{}\t{}", k.name, best, k.iters, checksum, k.tol);
+    print.printlnf("{}\t{}\t{}\t{}\t{}\t{}", k.name, best, k.iters, checksum, k.tol, k.group);
 }

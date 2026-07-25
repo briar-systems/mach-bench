@@ -71,8 +71,8 @@ int main(int argc, char **argv) {
             if (r == 0 || ns < best) best = ns;
         }
 
-        printf("%s\t%lld\t%d\t%.17g\t%g\n", kernels[k].name, best, kernels[k].iters, checksum,
-               kernels[k].tol);
+        printf("%s\t%lld\t%d\t%.17g\t%g\t%s\n", kernels[k].name, best, kernels[k].iters, checksum,
+               kernels[k].tol, kernels[k].group);
     }
 
     return 0;

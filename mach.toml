@@ -37,16 +37,6 @@ opt = 2
 debug = false
 simd = "scalarize"
 
-# same pipeline as release, but explicit vector types (f32x4 and friends) are
-# required to lower to native SIMD rather than being scalarized. auto-
-# vectorization is automatic at opt = 2 and is not gated on this key, so for the
-# current all-scalar kernel set this profile measures identically to release --
-# it exists for kernels written against explicit vector types.
-[profile.vector]
-opt = 2
-debug = false
-simd = "require"
-
 [dep.mach-std]
 git = "https://github.com/briar-systems/mach-std"
 ref = "branch/main"
