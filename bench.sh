@@ -7,7 +7,8 @@
 #   --rounds <n>      interleaved passes over every binary (default: 3)
 #   --filter <substr> only report kernels whose name contains <substr>
 #   --native          add a `cc -O3 -march=native` column (host ISA, not baseline)
-#   --fast-math       add a `cc -O3 -ffast-math` column (allows FP reassociation)
+#   --fast-math       compare with FP reassociation on both sides: C at
+#                     `-O3 -ffast-math` against the mach `reassoc` profile
 #   --asm             also emit assembly for both sides, for inspecting codegen
 #   --help            show this message
 
@@ -18,7 +19,7 @@ OUT="$ROOT/out"
 CC=${CC:-cc}
 MACH=${MACH:-mach}
 
-PROFILE=release
+PROFILE=
 REPS=7
 ROUNDS=3
 FILTER=
@@ -65,7 +66,14 @@ label_for() {
 }
 
 [ "$WANT_NATIVE" -eq 1 ] && VARIANTS="$VARIANTS native"
-[ "$WANT_FAST" -eq 1 ] && VARIANTS="$VARIANTS fast"
+
+# a reassociating C build is only comparable to a reassociating mach build, so
+# --fast-math swaps the whole comparison rather than adding a lopsided column
+if [ "$WANT_FAST" -eq 1 ]; then
+    VARIANTS="fast"
+    [ -n "$PROFILE" ] || PROFILE=reassoc
+fi
+[ -n "$PROFILE" ] || PROFILE=release
 
 # dependencies are gitlinks under dep/, pinned by the commit git records
 if [ ! -d "$ROOT/dep/std" ]; then
@@ -77,12 +85,17 @@ mkdir -p "$OUT/c" "$OUT/run"
 
 # the simd mode recorded for the selected profile, shown in the header so a
 # saved table always says which codegen mode produced it
-SIMD=$(awk -v p="[profile.$PROFILE]" '
-    $0 == p { inp = 1; next }
-    /^\[/   { inp = 0 }
-    inp && /^[ \t]*simd[ \t]*=/ { gsub(/.*=[ \t]*"|"[ \t]*$/, ""); print; exit }
-' "$ROOT/mach.toml")
+profile_key() {
+    awk -v p="[profile.$PROFILE]" -v k="$1" '
+        $0 == p { inp = 1; next }
+        /^\[/   { inp = 0 }
+        inp && $1 == k { gsub(/.*=[ \t]*"?|"[ \t]*$/, ""); print; exit }
+    ' "$ROOT/mach.toml"
+}
+SIMD=$(profile_key simd)
 [ -n "$SIMD" ] || SIMD="?"
+REASSOC=$(profile_key float_reassoc)
+[ -n "$REASSOC" ] || REASSOC="?"
 
 for v in $VARIANTS; do
     # kernels and harness stay separate translation units, and no LTO, so the
@@ -130,7 +143,7 @@ HOST=$($MACH info 2>/dev/null | awk '/^host:/ {print $2}')
 # shellcheck disable=SC2086
 awk -v variants="$VARIANTS" -v outdir="$OUT/run" -v filter="$FILTER" \
     -v rounds="$ROUNDS" -v machver="$MACH_VER" -v ccver="$CC_VER" -v host="$HOST" \
-    -v profile="$PROFILE" -v simd="$SIMD" -v reps="$REPS" '
+    -v profile="$PROFILE" -v simd="$SIMD" -v reassoc="$REASSOC" -v reps="$REPS" '
 function human(ns,   u) {
     if (ns < 1000)    { return sprintf("%.1f ns", ns) }
     if (ns < 1000000) { return sprintf("%.2f us", ns / 1000) }
@@ -192,7 +205,7 @@ BEGIN {
     }
 
     printf "\n  mach-bench  ·  %s  ·  %s  ·  %s\n", machver, ccver, host
-    printf "  profile %s (simd=%s)  ·  best of %s rounds x %s reps  ·  C at baseline x86-64\n\n", profile, simd, rounds, reps
+    printf "  profile %s (simd=%s, float_reassoc=%s)  ·  best of %s rounds x %s reps  ·  C at baseline x86-64\n\n", profile, simd, reassoc, rounds, reps
 
     w = 16
     line = sprintf("  %-*s", w, "kernel")

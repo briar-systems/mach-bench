@@ -42,6 +42,15 @@ simd = "scalarize"
 vectorize = true
 float_reassoc = false
 
+# release plus permission to reassociate float reductions; the mach side of a
+# `cc -ffast-math` comparison, selected by bench.sh --fast-math
+[profile.reassoc]
+opt = 2
+debug = false
+simd = "scalarize"
+vectorize = true
+float_reassoc = true
+
 [dep.std]
 git = "https://github.com/briar-systems/mach-std"
 ref = "tag/v2.0.0"
