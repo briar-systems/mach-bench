@@ -1,22 +1,23 @@
+use io_error: std.io.error;
+use std.print;
 use std.runtime;
+use std.text.parse;
+use std.types.error.err;
+use std.types.result.res;
 use std.types.string.str;
-use std.types.result.Result;
-use std.types.result.is_err;
-use std.types.result.unwrap_ok;
-use parse: std.text.parse;
 
 use bench.data;
-use bench.kernels;
 use h: bench.harness;
+use bench.kernels;
 
 # optional first positional argument: timed repetitions per kernel
 fun reps_from_args(argc: i64, argv: **u8) i64 {
     if (argc < 2) { ret h.DEFAULT_REPS; }
 
-    val r: Result[i64, str] = parse.parse_i64(argv[1]::str, 10);
-    if (is_err[i64, str](r)) { ret h.DEFAULT_REPS; }
+    val r: res[i64, parse.ParseError] = parse.parse_i64(argv[1]::str, 10);
+    if (sel r.err) { ret h.DEFAULT_REPS; }
 
-    val n: i64 = unwrap_ok[i64, str](r);
+    val n: i64 = r.ok;
     if (n < 1) { ret h.DEFAULT_REPS; }
     ret n;
 }
@@ -29,7 +30,11 @@ fun main(argc: i64, argv: **u8) i64 {
 
     var i: i64 = 0;
     for (i < kernels.REGISTRY_LEN) {
-        h.run(kernels.REGISTRY[i], reps);
+        val e: err[io_error.Error] = h.run(kernels.REGISTRY[i], reps);
+        if (sel e.err) {
+            print.eprintlnf("mach-bench: {}: clock failed: {}", kernels.REGISTRY[i].name, io_error.message(e.err));
+            ret 1;
+        }
         i = i + 1;
     }
 

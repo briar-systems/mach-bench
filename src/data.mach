@@ -5,16 +5,16 @@
 # reported checksums directly comparable.
 
 # working-set sizes, shared with c/bench.h
-pub val N_SMALL:   i64 = 65536;   # 256 KB as f32 -- L2 resident
-pub val N_BYTES:   i64 = 262144;  # 256 KB as u8
-pub val N_STREAM:  i64 = 2097152; # 8 MB per array, 24 MB across the triad
-pub val MAT_N:     i64 = 96;      # 96x96 f32 matmul
-pub val MAT_ELEMS: i64 = MAT_N * MAT_N;
-pub val N_PART:     i64 = 16384;  # particles, 24 bytes each
-pub val N_SORT:     i64 = 4096;   # sort scratch, sorted in blocks
-pub val SORT_BLOCK: i64 = 64;     # insertion-sort block length
-pub val N_QUERY:    i64 = 8192;   # binary-search queries
-pub val FIB_N:      i64 = 27;     # naive recursive fibonacci depth
+pub val N_SMALL:    i64 = 65536; # 256 KB as f32 -- L2 resident
+pub val N_BYTES:    i64 = 262144; # 256 KB as u8
+pub val N_STREAM:   i64 = 2097152; # 8 MB per array, 24 MB across the triad
+pub val MAT_N:      i64 = 96; # 96x96 f32 matmul
+pub val MAT_ELEMS:  i64 = MAT_N * MAT_N;
+pub val N_PART:     i64 = 16384; # particles, 24 bytes each
+pub val N_SORT:     i64 = 4096; # sort scratch, sorted in blocks
+pub val SORT_BLOCK: i64 = 64; # insertion-sort block length
+pub val N_QUERY:    i64 = 8192; # binary-search queries
+pub val FIB_N:      i64 = 27; # naive recursive fibonacci depth
 pub val NEEDLE_AT:  i64 = 200000; # offset in u8_a the search needle comes from
 pub val NEEDLE_LEN: i64 = 8;
 
@@ -29,25 +29,25 @@ pub rec Particle {
     vz: f32;
 }
 
-pub var f32_a:   [N_SMALL]f32;
-pub var f32_b:   [N_SMALL]f32;
-pub var f32_out: [N_SMALL]f32;
-pub var f64_a:   [N_SMALL]f64;
-pub var f64_b:   [N_SMALL]f64;
-pub var i32_a:   [N_SMALL]i32;
-pub var i32_b:   [N_SMALL]i32;
-pub var i64_out: [N_SMALL]i64;
-pub var u8_a:    [N_BYTES]u8;
-pub var st_a:    [N_STREAM]f32;
-pub var st_b:    [N_STREAM]f32;
-pub var st_out:  [N_STREAM]f32;
-pub var mat_a:   [MAT_ELEMS]f32;
-pub var mat_b:   [MAT_ELEMS]f32;
-pub var mat_out: [MAT_ELEMS]f32;
+pub var f32_a:    [N_SMALL]f32;
+pub var f32_b:    [N_SMALL]f32;
+pub var f32_out:  [N_SMALL]f32;
+pub var f64_a:    [N_SMALL]f64;
+pub var f64_b:    [N_SMALL]f64;
+pub var i32_a:    [N_SMALL]i32;
+pub var i32_b:    [N_SMALL]i32;
+pub var i64_out:  [N_SMALL]i64;
+pub var u8_a:     [N_BYTES]u8;
+pub var st_a:     [N_STREAM]f32;
+pub var st_b:     [N_STREAM]f32;
+pub var st_out:   [N_STREAM]f32;
+pub var mat_a:    [MAT_ELEMS]f32;
+pub var mat_b:    [MAT_ELEMS]f32;
+pub var mat_out:  [MAT_ELEMS]f32;
 pub var parts:    [N_PART]Particle;
-pub var chase:    [N_SMALL]i32;    # a single random cycle over [0, N_SMALL)
-pub var sortbuf:  [N_SORT]i32;     # scratch, refilled by the sort kernel
-pub var sorted_a: [N_SMALL]i32;    # strictly ascending: sorted_a[i] == 2*i
+pub var chase:    [N_SMALL]i32; # a single random cycle over [0, N_SMALL)
+pub var sortbuf:  [N_SORT]i32; # scratch, refilled by the sort kernel
+pub var sorted_a: [N_SMALL]i32; # strictly ascending: sorted_a[i] == 2*i
 pub var needle:   [NEEDLE_LEN]u8;
 
 var rng: u64 = 0x9E3779B97F4A7C15;
@@ -57,9 +57,9 @@ var rng: u64 = 0x9E3779B97F4A7C15;
 # ret: next pseudo-random 64-bit value
 fun next() u64 {
     var x: u64 = rng;
-    x = x ^ (x >> 12);
-    x = x ^ (x << 25);
-    x = x ^ (x >> 27);
+    x   = x ^ (x >> 12);
+    x   = x ^ (x << 25);
+    x   = x ^ (x >> 27);
     rng = x;
     ret x * 0x2545F4914F6CDD1D;
 }
@@ -84,27 +84,27 @@ pub fun init() {
         f64_b[i] = (next_byte()::f64) * 0.00390625;
         i32_a[i] = next_byte()::i32;
         i32_b[i] = next_byte()::i32;
-        i = i + 1;
+        i        = i + 1;
     }
 
     i = 0;
     for (i < N_BYTES) {
         u8_a[i] = next_byte()::u8;
-        i = i + 1;
+        i       = i + 1;
     }
 
     i = 0;
     for (i < N_STREAM) {
         st_a[i] = (next_byte()::f32) * 0.00390625;
         st_b[i] = (next_byte()::f32) * 0.00390625;
-        i = i + 1;
+        i       = i + 1;
     }
 
     i = 0;
     for (i < MAT_ELEMS) {
         mat_a[i] = (next_byte()::f32) * 0.00390625;
         mat_b[i] = (next_byte()::f32) * 0.00390625;
-        i = i + 1;
+        i        = i + 1;
     }
 
     i = 0;
@@ -115,14 +115,14 @@ pub fun init() {
         parts[i].vx = (next_byte()::f32) * 0.00390625;
         parts[i].vy = (next_byte()::f32) * 0.00390625;
         parts[i].vz = (next_byte()::f32) * 0.00390625;
-        i = i + 1;
+        i           = i + 1;
     }
 
     # sorted_a is strictly ascending, so binary search needs no sort at init
     i = 0;
     for (i < N_SMALL) {
         sorted_a[i] = (2 * i)::i32;
-        i = i + 1;
+        i           = i + 1;
     }
 
     # build a single Hamiltonian cycle over [0, N_SMALL): Fisher-Yates a
@@ -132,7 +132,7 @@ pub fun init() {
     i = 0;
     for (i < N_SMALL) {
         i64_out[i] = i;
-        i = i + 1;
+        i          = i + 1;
     }
     i = N_SMALL - 1;
     for (i > 0) {
@@ -140,17 +140,17 @@ pub fun init() {
         val t: i64 = i64_out[i];
         i64_out[i] = i64_out[j];
         i64_out[j] = t;
-        i = i - 1;
+        i          = i - 1;
     }
     i = 0;
     for (i < N_SMALL) {
         chase[i64_out[i]] = i64_out[(i + 1) % N_SMALL]::i32;
-        i = i + 1;
+        i                 = i + 1;
     }
 
     i = 0;
     for (i < NEEDLE_LEN) {
         needle[i] = u8_a[NEEDLE_AT + i];
-        i = i + 1;
+        i         = i + 1;
     }
 }
