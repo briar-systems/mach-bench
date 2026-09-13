@@ -39,7 +39,7 @@ default = true
 opt = 2
 debug = false
 simd = "scalarize"
-vectorize = false
+vectorize = true
 float_reassoc = false
 
 [dep.std]
