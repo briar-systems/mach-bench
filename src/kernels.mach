@@ -4,12 +4,8 @@
 # they live in their own module so the timing loop in bench.harness cannot
 # inline through them or hoist them out.
 
+use std.types.result.res;
 use std.types.string.str;
-use std.types.result.Result;
-use std.types.result.ok;
-use std.types.result.err;
-use std.types.result.is_err;
-use std.types.result.unwrap_ok;
 
 use d: bench.data;
 use h: bench.harness;
@@ -313,21 +309,24 @@ fun k_binsearch() f64 {
     ret acc::f64;
 }
 
-# Mach-idiomatic error handling: Result[i64, str] checked every iteration on a
-# path that never fails. c/kernels.c uses an int status plus an out-parameter,
-# so this measures each language's ordinary error-propagation idiom
-fun step_checked(v: i32) Result[i64, str] {
-    if (v < 0) { ret err[i64, str]("negative"); }
-    ret ok[i64, str]((v::i64) * 3 + 1);
+# Mach-idiomatic error handling: res[i64, StepError] checked every iteration on
+# a path that never fails. c/kernels.c uses an int status plus an
+# out-parameter, so this measures each language's ordinary error-propagation
+# idiom
+tag StepError: u8 { negative; }
+
+fun step_checked(v: i32) res[i64, StepError] {
+    if (v < 0) { ret res[i64, StepError].err{StepError.negative{}}; }
+    ret res[i64, StepError].ok{(v::i64) * 3 + 1};
 }
 
 fun k_result_chain() f64 {
     var acc: i64 = 0;
     var i: i64 = 0;
     for (i < d.N_SMALL) {
-        val r: Result[i64, str] = step_checked(d.i32_a[i]);
-        if (is_err[i64, str](r)) { ret 0.0 - 1.0; }
-        acc = acc + unwrap_ok[i64, str](r);
+        val r: res[i64, StepError] = step_checked(d.i32_a[i]);
+        if (sel r.err) { ret 0.0 - 1.0; }
+        acc = acc + r.ok;
         i = i + 1;
     }
     ret acc::f64;

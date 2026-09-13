@@ -67,8 +67,8 @@ label_for() {
 [ "$WANT_NATIVE" -eq 1 ] && VARIANTS="$VARIANTS native"
 [ "$WANT_FAST" -eq 1 ] && VARIANTS="$VARIANTS fast"
 
-# dependencies are a fetched checkout pinned by mach.lock, not tracked in git
-if [ ! -d "$ROOT/dep/mach-std" ]; then
+# dependencies are gitlinks under dep/, pinned by the commit git records
+if [ ! -d "$ROOT/dep/std" ]; then
     echo "bench.sh: dependencies not present -- run '$MACH dep pull $ROOT' first" >&2
     exit 1
 fi
