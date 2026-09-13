@@ -10,11 +10,11 @@
 #
 # c/bench.c emits the identical format.
 
+use std.chrono.time;
+use io_error: std.io.error;
+use std.print;
 use std.types.error.err;
 use std.types.string.str;
-use print: std.print;
-use time: std.chrono.time;
-use io_error: std.io.error;
 
 # default timed repetitions per kernel; override with the binary's first
 # positional argument
@@ -51,7 +51,7 @@ pub var sink: f64 = 0.0;
 # k:   kernel to run
 # ret: elapsed time for the whole batch, in nanoseconds, or the clock's refusal
 fun time_kernel(k: Kernel) time.Elapsed {
-    var acc: f64 = 0.0;
+    var acc:  f64 = 0.0;
     var last: f64 = 0.0;
 
     val t0: time.Clock = time.monotonic();
@@ -59,15 +59,15 @@ fun time_kernel(k: Kernel) time.Elapsed {
     var i: i64 = 0;
     for (i < k.iters) {
         last = k.fn();
-        acc = acc + last;
-        i = i + 1;
+        acc  = acc + last;
+        i    = i + 1;
     }
     val t1: time.Clock = time.monotonic();
     if (sel t1.err) { ret time.Elapsed.err{t1.err}; }
 
     # acc only exists to stop the optimiser discarding the calls; the reported
     # checksum is the kernel's own return value, exact rather than averaged
-    sink = acc;
+    sink     = acc;
     checksum = last;
     ret time.Elapsed.ok{time.time_sub(t1.ok, t0.ok)};
 }
@@ -86,7 +86,7 @@ pub fun run(k: Kernel, reps: i64) err[io_error.Error] {
     if (sel warm.err) { ret err[io_error.Error].err{warm.err}; }
 
     var best: i64 = 0;
-    var r: i64 = 0;
+    var r:    i64 = 0;
     for (r < reps) {
         val t: time.Elapsed = time_kernel(k);
         if (sel t.err) { ret err[io_error.Error].err{t.err}; }

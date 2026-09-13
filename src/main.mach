@@ -1,14 +1,14 @@
+use io_error: std.io.error;
+use std.print;
 use std.runtime;
+use std.text.parse;
 use std.types.error.err;
 use std.types.result.res;
 use std.types.string.str;
-use print: std.print;
-use parse: std.text.parse;
-use io_error: std.io.error;
 
 use bench.data;
-use bench.kernels;
 use h: bench.harness;
+use bench.kernels;
 
 # optional first positional argument: timed repetitions per kernel
 fun reps_from_args(argc: i64, argv: **u8) i64 {

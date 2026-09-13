@@ -14,10 +14,10 @@ use h: bench.harness;
 # autovectorisation target
 fun k_f32_saxpy() f64 {
     val alpha: f32 = 1.0009765625;
-    var i: i64 = 0;
+    var i:     i64 = 0;
     for (i < d.N_SMALL) {
         d.f32_out[i] = alpha * d.f32_a[i] + d.f32_b[i];
-        i = i + 1;
+        i            = i + 1;
     }
     ret d.f32_out[0]::f64 + d.f32_out[d.N_SMALL / 2]::f64 + d.f32_out[d.N_SMALL - 1]::f64;
 }
@@ -26,10 +26,10 @@ fun k_f32_saxpy() f64 {
 # compared with a relative tolerance rather than bit-exactly
 fun k_f64_dot() f64 {
     var acc: f64 = 0.0;
-    var i: i64 = 0;
+    var i:   i64 = 0;
     for (i < d.N_SMALL) {
         acc = acc + d.f64_a[i] * d.f64_b[i];
-        i = i + 1;
+        i   = i + 1;
     }
     ret acc;
 }
@@ -37,10 +37,10 @@ fun k_f64_dot() f64 {
 # f32 sum of squares -- reduction with a single multiply per element
 fun k_f32_norm() f64 {
     var acc: f32 = 0.0;
-    var i: i64 = 0;
+    var i:   i64 = 0;
     for (i < d.N_SMALL) {
         acc = acc + d.f32_a[i] * d.f32_a[i];
-        i = i + 1;
+        i   = i + 1;
     }
     ret acc::f64;
 }
@@ -49,10 +49,10 @@ fun k_f32_norm() f64 {
 # exactly representable as f64
 fun k_i32_madd() f64 {
     var acc: i64 = 0;
-    var i: i64 = 0;
+    var i:   i64 = 0;
     for (i < d.N_SMALL) {
         acc = acc + (d.i32_a[i]::i64) * (d.i32_b[i]::i64);
-        i = i + 1;
+        i   = i + 1;
     }
     ret acc::f64;
 }
@@ -72,11 +72,11 @@ fun k_u8_count() f64 {
 # the control case: a correct vectoriser must leave it scalar
 fun k_u64_fnv1a() f64 {
     var hash: u64 = 0xCBF29CE484222325; # FNV-1a 64-bit offset basis
-    var i: i64 = 0;
+    var i:    i64 = 0;
     for (i < d.N_BYTES) {
         hash = hash ^ (d.u8_a[i]::u64);
-        hash = hash * 0x100000001B3;    # FNV-1a 64-bit prime
-        i = i + 1;
+        hash = hash * 0x100000001B3; # FNV-1a 64-bit prime
+        i    = i + 1;
     }
     ret (hash % 1000000007)::f64;
 }
@@ -85,7 +85,7 @@ fun k_u64_fnv1a() f64 {
 # or stays a mispredicting jump
 fun k_i32_filter_sum() f64 {
     var acc: i64 = 0;
-    var i: i64 = 0;
+    var i:   i64 = 0;
     for (i < d.N_SMALL) {
         if (d.i32_a[i] > d.i32_b[i]) { acc = acc + d.i32_a[i]::i64; }
         i = i + 1;
@@ -96,11 +96,11 @@ fun k_i32_filter_sum() f64 {
 # loop-carried dependency: each output needs the previous one
 fun k_i64_prefix_sum() f64 {
     var acc: i64 = 0;
-    var i: i64 = 0;
+    var i:   i64 = 0;
     for (i < d.N_SMALL) {
-        acc = acc + d.i32_a[i]::i64;
+        acc          = acc + d.i32_a[i]::i64;
         d.i64_out[i] = acc;
-        i = i + 1;
+        i            = i + 1;
     }
     ret d.i64_out[d.N_SMALL - 1]::f64;
 }
@@ -110,7 +110,7 @@ fun k_f32_matmul() f64 {
     var z: i64 = 0;
     for (z < d.MAT_ELEMS) {
         d.mat_out[z] = 0.0;
-        z = z + 1;
+        z            = z + 1;
     }
 
     var i: i64 = 0;
@@ -118,10 +118,10 @@ fun k_f32_matmul() f64 {
         var k: i64 = 0;
         for (k < d.MAT_N) {
             val aik: f32 = d.mat_a[i * d.MAT_N + k];
-            var j: i64 = 0;
+            var j:   i64 = 0;
             for (j < d.MAT_N) {
                 d.mat_out[i * d.MAT_N + j] = d.mat_out[i * d.MAT_N + j] + aik * d.mat_b[k * d.MAT_N + j];
-                j = j + 1;
+                j                          = j + 1;
             }
             k = k + 1;
         }
@@ -135,18 +135,23 @@ fun k_f32_matmul() f64 {
 # converge regardless of how well the loop vectorises
 fun k_stream_triad() f64 {
     val scalar: f32 = 3.0;
-    var i: i64 = 0;
+    var i:      i64 = 0;
     for (i < d.N_STREAM) {
         d.st_out[i] = d.st_a[i] + scalar * d.st_b[i];
-        i = i + 1;
+        i           = i + 1;
     }
     ret d.st_out[0]::f64 + d.st_out[d.N_STREAM / 2]::f64 + d.st_out[d.N_STREAM - 1]::f64;
 }
 
 def StepFun: fun(i32) i32;
 
-fun step_add(v: i32) i32 { ret v + 1; }
-fun step_mul(v: i32) i32 { ret v * 2; }
+fun step_add(v: i32) i32 {
+    ret v + 1;
+}
+
+fun step_mul(v: i32) i32 {
+    ret v * 2;
+}
 
 var steps: [2]StepFun = [2]StepFun{step_add, step_mul};
 
@@ -154,11 +159,11 @@ var steps: [2]StepFun = [2]StepFun{step_add, step_mul};
 # devirtualise it, so this is call overhead with inlining taken off the table
 fun k_call_indirect() f64 {
     var acc: i64 = 0;
-    var i: i64 = 0;
+    var i:   i64 = 0;
     for (i < d.N_SMALL) {
         val f: StepFun = steps[(d.i32_a[i] & 1)::i64];
         acc = acc + (f(d.i32_a[i] & 0xFF)::i64);
-        i = i + 1;
+        i   = i + 1;
     }
     ret acc::f64;
 }
@@ -166,13 +171,13 @@ fun k_call_indirect() f64 {
 # array-of-structures traversal: six f32 fields at a 24-byte stride. the f64
 # accumulator keeps the result exact, so this stays a bit-exact comparison
 fun k_rec_particle() f64 {
-    val dt: f32 = 0.00390625;
+    val dt:  f32 = 0.00390625;
     var acc: f64 = 0.0;
-    var i: i64 = 0;
+    var i:   i64 = 0;
     for (i < d.N_PART) {
         acc = acc + (d.parts[i].x + d.parts[i].vx * dt)::f64
-                  + (d.parts[i].y + d.parts[i].vy * dt)::f64
-                  + (d.parts[i].z + d.parts[i].vz * dt)::f64;
+            + (d.parts[i].y + d.parts[i].vy * dt)::f64
+            + (d.parts[i].z + d.parts[i].vz * dt)::f64;
         i = i + 1;
     }
     ret acc;
@@ -181,13 +186,13 @@ fun k_rec_particle() f64 {
 # pointer chasing over a random Hamiltonian cycle. every load depends on the
 # previous one, so this is memory latency with prefetching defeated
 fun k_list_walk() f64 {
-    var p: i32 = 0;
+    var p:   i32 = 0;
     var acc: i64 = 0;
-    var i: i64 = 0;
+    var i:   i64 = 0;
     for (i < d.N_SMALL) {
-        p = d.chase[p::i64];
+        p   = d.chase[p::i64];
         acc = acc + p::i64;
-        i = i + 1;
+        i   = i + 1;
     }
     ret acc::f64;
 }
@@ -197,7 +202,7 @@ fun k_list_walk() f64 {
 fun k_branch_dispatch() f64 {
     var acc: i64 = 0;
     var reg: i64 = 1;
-    var i: i64 = 0;
+    var i:   i64 = 0;
     for (i < d.N_BYTES) {
         val op: i64 = (d.u8_a[i] & 3)::i64;
         if (op == 0) {
@@ -223,7 +228,7 @@ fun k_sort_blocks() f64 {
     var i: i64 = 0;
     for (i < d.N_SORT) {
         d.sortbuf[i] = d.i32_a[i];
-        i = i + 1;
+        i            = i + 1;
     }
 
     var b: i64 = 0;
@@ -234,10 +239,10 @@ fun k_sort_blocks() f64 {
             var j: i64 = i - 1;
             for (j >= b && d.sortbuf[j] > v) {
                 d.sortbuf[j + 1] = d.sortbuf[j];
-                j = j - 1;
+                j                = j - 1;
             }
             d.sortbuf[j + 1] = v;
-            i = i + 1;
+            i                = i + 1;
         }
         b = b + d.SORT_BLOCK;
     }
@@ -247,7 +252,7 @@ fun k_sort_blocks() f64 {
     i = 0;
     for (i < d.N_SORT) {
         acc = acc + (i + 1) * (d.sortbuf[i]::i64);
-        i = i + 1;
+        i   = i + 1;
     }
     ret acc::f64;
 }
@@ -266,7 +271,7 @@ fun k_recurse_fib() f64 {
 # naive substring search -- nested loop with an early exit
 fun k_str_search() f64 {
     var found: i64 = 0 - 1;
-    var i: i64 = 0;
+    var i:     i64 = 0;
     for (i + d.NEEDLE_LEN <= d.N_BYTES) {
         var k: i64 = 0;
         for (k < d.NEEDLE_LEN && d.u8_a[i + k] == d.needle[k]) {
@@ -284,11 +289,11 @@ fun k_str_search() f64 {
 # binary search: unpredictable branches over a working set larger than L2
 fun k_binsearch() f64 {
     var acc: i64 = 0;
-    var q: i64 = 0;
+    var q:   i64 = 0;
     for (q < d.N_QUERY) {
         val key: i32 = ((d.i32_a[q] * 17 + (q::i32) * 3) % ((2 * d.N_SMALL)::i32));
-        var lo: i64 = 0;
-        var hi: i64 = d.N_SMALL - 1;
+        var lo:  i64 = 0;
+        var hi:  i64 = d.N_SMALL - 1;
         var res: i64 = 0 - 1;
         for (lo <= hi) {
             val mid: i64 = (lo + hi) / 2;
@@ -304,7 +309,7 @@ fun k_binsearch() f64 {
             }
         }
         acc = acc + res;
-        q = q + 1;
+        q   = q + 1;
     }
     ret acc::f64;
 }
@@ -322,12 +327,12 @@ fun step_checked(v: i32) res[i64, StepError] {
 
 fun k_result_chain() f64 {
     var acc: i64 = 0;
-    var i: i64 = 0;
+    var i:   i64 = 0;
     for (i < d.N_SMALL) {
         val r: res[i64, StepError] = step_checked(d.i32_a[i]);
         if (sel r.err) { ret 0.0 - 1.0; }
         acc = acc + r.ok;
-        i = i + 1;
+        i   = i + 1;
     }
     ret acc::f64;
 }
@@ -341,24 +346,24 @@ val G_LOOPS:   str = "array loops";
 val G_GENERAL: str = "general codegen";
 
 pub val REGISTRY: [REGISTRY_LEN]h.Kernel = [REGISTRY_LEN]h.Kernel{
-    h.Kernel{name: "f32_saxpy",       fn: k_f32_saxpy,       iters: 100, tol: 0.0,    group: G_LOOPS},
-    h.Kernel{name: "f64_dot",         fn: k_f64_dot,         iters: 100, tol: 0.0,    group: G_LOOPS},
-    h.Kernel{name: "f32_norm",        fn: k_f32_norm,        iters: 100, tol: 0.001,  group: G_LOOPS},
-    h.Kernel{name: "i32_madd",        fn: k_i32_madd,        iters: 100, tol: 0.0,    group: G_LOOPS},
-    h.Kernel{name: "u8_count",        fn: k_u8_count,        iters: 50,  tol: 0.0,    group: G_LOOPS},
-    h.Kernel{name: "u64_fnv1a",       fn: k_u64_fnv1a,       iters: 10,  tol: 0.0,    group: G_LOOPS},
-    h.Kernel{name: "i32_filter_sum",  fn: k_i32_filter_sum,  iters: 100, tol: 0.0,    group: G_LOOPS},
-    h.Kernel{name: "i64_prefix_sum",  fn: k_i64_prefix_sum,  iters: 100, tol: 0.0,    group: G_LOOPS},
-    h.Kernel{name: "f32_matmul",      fn: k_f32_matmul,      iters: 10,  tol: 0.0001, group: G_LOOPS},
-    h.Kernel{name: "stream_triad",    fn: k_stream_triad,    iters: 5,   tol: 0.0,    group: G_LOOPS},
+    h.Kernel{name: "f32_saxpy", fn: k_f32_saxpy, iters: 100, tol: 0.0, group: G_LOOPS},
+    h.Kernel{name: "f64_dot", fn: k_f64_dot, iters: 100, tol: 0.0, group: G_LOOPS},
+    h.Kernel{name: "f32_norm", fn: k_f32_norm, iters: 100, tol: 0.001, group: G_LOOPS},
+    h.Kernel{name: "i32_madd", fn: k_i32_madd, iters: 100, tol: 0.0, group: G_LOOPS},
+    h.Kernel{name: "u8_count", fn: k_u8_count, iters: 50, tol: 0.0, group: G_LOOPS},
+    h.Kernel{name: "u64_fnv1a", fn: k_u64_fnv1a, iters: 10, tol: 0.0, group: G_LOOPS},
+    h.Kernel{name: "i32_filter_sum", fn: k_i32_filter_sum, iters: 100, tol: 0.0, group: G_LOOPS},
+    h.Kernel{name: "i64_prefix_sum", fn: k_i64_prefix_sum, iters: 100, tol: 0.0, group: G_LOOPS},
+    h.Kernel{name: "f32_matmul", fn: k_f32_matmul, iters: 10, tol: 0.0001, group: G_LOOPS},
+    h.Kernel{name: "stream_triad", fn: k_stream_triad, iters: 5, tol: 0.0, group: G_LOOPS},
 
-    h.Kernel{name: "call_indirect",   fn: k_call_indirect,   iters: 50,  tol: 0.0,    group: G_GENERAL},
-    h.Kernel{name: "rec_particle",    fn: k_rec_particle,    iters: 50,  tol: 0.0,    group: G_GENERAL},
-    h.Kernel{name: "list_walk",       fn: k_list_walk,       iters: 20,  tol: 0.0,    group: G_GENERAL},
-    h.Kernel{name: "branch_dispatch", fn: k_branch_dispatch, iters: 10,  tol: 0.0,    group: G_GENERAL},
-    h.Kernel{name: "sort_blocks",     fn: k_sort_blocks,     iters: 20,  tol: 0.0,    group: G_GENERAL},
-    h.Kernel{name: "recurse_fib",     fn: k_recurse_fib,     iters: 5,   tol: 0.0,    group: G_GENERAL},
-    h.Kernel{name: "str_search",      fn: k_str_search,      iters: 20,  tol: 0.0,    group: G_GENERAL},
-    h.Kernel{name: "binsearch",       fn: k_binsearch,       iters: 20,  tol: 0.0,    group: G_GENERAL},
-    h.Kernel{name: "result_chain",    fn: k_result_chain,    iters: 100, tol: 0.0,    group: G_GENERAL}
+    h.Kernel{name: "call_indirect", fn: k_call_indirect, iters: 50, tol: 0.0, group: G_GENERAL},
+    h.Kernel{name: "rec_particle", fn: k_rec_particle, iters: 50, tol: 0.0, group: G_GENERAL},
+    h.Kernel{name: "list_walk", fn: k_list_walk, iters: 20, tol: 0.0, group: G_GENERAL},
+    h.Kernel{name: "branch_dispatch", fn: k_branch_dispatch, iters: 10, tol: 0.0, group: G_GENERAL},
+    h.Kernel{name: "sort_blocks", fn: k_sort_blocks, iters: 20, tol: 0.0, group: G_GENERAL},
+    h.Kernel{name: "recurse_fib", fn: k_recurse_fib, iters: 5, tol: 0.0, group: G_GENERAL},
+    h.Kernel{name: "str_search", fn: k_str_search, iters: 20, tol: 0.0, group: G_GENERAL},
+    h.Kernel{name: "binsearch", fn: k_binsearch, iters: 20, tol: 0.0, group: G_GENERAL},
+    h.Kernel{name: "result_chain", fn: k_result_chain, iters: 100, tol: 0.0, group: G_GENERAL}
 };
