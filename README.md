@@ -143,6 +143,7 @@ informative.
 | `--native` | add a `cc -O3 -march=native` column (host ISA, not baseline) |
 | `--fast-math` | add a `cc -O3 -ffast-math` column (permits FP reassociation) |
 | `--asm` | also emit assembly for both sides |
+| `--check` | correctness only: one rep and one round unless given, and exit 1 when a kernel's checksums disagree beyond its tolerance or a kernel is registered on one side only |
 
 `CC` and `MACH` override the compilers used.
 

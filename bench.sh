@@ -10,6 +10,8 @@
 #   --fast-math       compare with FP reassociation on both sides: C at
 #                     `-O3 -ffast-math` against the mach `reassoc` profile
 #   --asm             also emit assembly for both sides, for inspecting codegen
+#   --check           correctness only: one rep, one round, and exit 1 when any
+#                     kernel's checksums disagree beyond its tolerance
 #   --help            show this message
 
 set -eu
@@ -20,12 +22,13 @@ CC=${CC:-cc}
 MACH=${MACH:-mach}
 
 PROFILE=
-REPS=7
-ROUNDS=3
+REPS=
+ROUNDS=
 FILTER=
 WANT_NATIVE=0
 WANT_FAST=0
 WANT_ASM=0
+WANT_CHECK=0
 
 usage() { awk 'NR>1 && /^#/ {sub(/^# ?/, ""); print; next} NR>1 {exit}' "$0"; }
 
@@ -38,6 +41,7 @@ while [ $# -gt 0 ]; do
         --native)  WANT_NATIVE=1; shift ;;
         --fast-math) WANT_FAST=1; shift ;;
         --asm)     WANT_ASM=1; shift ;;
+        --check)   WANT_CHECK=1; shift ;;
         --help|-h) usage; exit 0 ;;
         *) echo "bench.sh: unknown option '$1'" >&2; usage >&2; exit 2 ;;
     esac
@@ -74,6 +78,14 @@ if [ "$WANT_FAST" -eq 1 ]; then
     [ -n "$PROFILE" ] || PROFILE=reassoc
 fi
 [ -n "$PROFILE" ] || PROFILE=release
+
+# a check run wants the checksums, not the timings
+if [ "$WANT_CHECK" -eq 1 ]; then
+    [ -n "$REPS" ] || REPS=1
+    [ -n "$ROUNDS" ] || ROUNDS=1
+fi
+[ -n "$REPS" ] || REPS=7
+[ -n "$ROUNDS" ] || ROUNDS=3
 
 # dependencies are gitlinks under dep/, pinned by the commit git records
 if [ ! -d "$ROOT/dep/std" ]; then
@@ -143,7 +155,8 @@ HOST=$($MACH info 2>/dev/null | awk '/^host:/ {print $2}')
 # shellcheck disable=SC2086
 awk -v variants="$VARIANTS" -v outdir="$OUT/run" -v filter="$FILTER" \
     -v rounds="$ROUNDS" -v machver="$MACH_VER" -v ccver="$CC_VER" -v host="$HOST" \
-    -v profile="$PROFILE" -v simd="$SIMD" -v reassoc="$REASSOC" -v reps="$REPS" '
+    -v profile="$PROFILE" -v simd="$SIMD" -v reassoc="$REASSOC" -v reps="$REPS" \
+    -v check="$WANT_CHECK" '
 function human(ns,   u) {
     if (ns < 1000)    { return sprintf("%.1f ns", ns) }
     if (ns < 1000000) { return sprintf("%.2f us", ns / 1000) }
@@ -203,6 +216,11 @@ BEGIN {
         }
         close(f)
     }
+
+    # a kernel registered on only one side has nothing to be compared against, and
+    # must be found before the table reads mt[] and creates the missing keys
+    for (r = 1; r <= n; r++) if (!(order[r] in mt)) { missing = missing " " order[r]; lone++ }
+    for (k in mt) if (!(k in tol)) { missing = missing " " k; lone++ }
 
     printf "\n  mach-bench  ·  %s  ·  %s  ·  %s\n", machver, ccver, host
     printf "  profile %s (simd=%s, float_reassoc=%s)  ·  best of %s rounds x %s reps  ·  C at baseline x86-64\n\n", profile, simd, reassoc, rounds, reps
@@ -275,10 +293,12 @@ BEGIN {
     printf "\n  ratio = mach / C  ·  lower is better  ·  1.00x is parity\n"
     printf "  chk: = bit-identical   ~ within kernel tolerance   ! disagreement\n"
     if (shown == 0) printf "\n  no kernels matched filter \"%s\"\n", filter
+    if (missing != "") printf "\n  WARNING: registered on one side only:%s\n", missing
     if (bad > 0) printf "\n  WARNING: %d kernel(s) disagree beyond tolerance -- results are not comparable\n", bad
     if (noisy > 1.25)
         printf "\n  NOTE: round-to-round spread up to %.2fx (%s) -- machine was busy;\n        ratios survive interleaving but re-run idle for trustworthy absolutes\n", noisy, noisy_k
     print ""
+    if (check && (bad > 0 || lone > 0)) exit 1
 }' </dev/null
 
 if [ "$WANT_ASM" -eq 1 ]; then
