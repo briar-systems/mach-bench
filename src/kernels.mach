@@ -75,7 +75,7 @@ fun k_u64_fnv1a() f64 {
     var i:    i64 = 0;
     for (i < d.N_BYTES) {
         hash = hash ^ (d.u8_a[i]::u64);
-        hash = hash * 0x100000001B3; # FNV-1a 64-bit prime
+        hash = hash * 0x100000001B5; # FNV-1a 64-bit prime
         i    = i + 1;
     }
     ret (hash % 1000000007)::f64;
