@@ -121,8 +121,12 @@ done
 
 ASM_FLAG=
 [ "$WANT_ASM" -eq 1 ] && ASM_FLAG=--emit-asm
+# the host target by name: out/ can also hold other targets' binaries from an
+# --all-targets build, and those do not run here
+HOST=$($MACH info 2>/dev/null | awk '/^host:/ {print $2}')
+[ -n "$HOST" ] || { echo "bench.sh: '$MACH info' reported no host target" >&2; exit 1; }
 # shellcheck disable=SC2086
-$MACH build "$ROOT" --profile "$PROFILE" $ASM_FLAG
+$MACH build "$ROOT" --target "$HOST" --profile "$PROFILE" $ASM_FLAG
 
 if [ "$WANT_ASM" -eq 1 ]; then
     for v in $VARIANTS; do
@@ -131,8 +135,8 @@ if [ "$WANT_ASM" -eq 1 ]; then
     done
 fi
 
-MACH_BIN=$(find "$OUT" -type f -path "*/$PROFILE/bin/*" -name 'mach-bench' | head -1)
-[ -n "$MACH_BIN" ] || { echo "bench.sh: mach binary not found under $OUT" >&2; exit 1; }
+MACH_BIN="$OUT/$HOST/$PROFILE/bin/mach-bench"
+[ -x "$MACH_BIN" ] || { echo "bench.sh: mach binary not found at $MACH_BIN" >&2; exit 1; }
 
 # interleave the binaries round-robin rather than running each to completion in
 # turn. background load drifts over the length of a run, and a block-sequential
@@ -150,7 +154,6 @@ done
 
 MACH_VER=$($MACH info 2>/dev/null | head -1)
 CC_VER=$($CC --version 2>/dev/null | head -1)
-HOST=$($MACH info 2>/dev/null | awk '/^host:/ {print $2}')
 
 # shellcheck disable=SC2086
 awk -v variants="$VARIANTS" -v outdir="$OUT/run" -v filter="$FILTER" \
