@@ -1,6 +1,7 @@
 use io_error: std.io.error;
 use std.print;
 use std.runtime;
+use std.system.os;
 use std.text.parse;
 use std.types.error.err;
 use std.types.result.res;
@@ -32,7 +33,7 @@ fun main(argc: i64, argv: **u8) i64 {
     for (i < kernels.REGISTRY_LEN) {
         val e: err[io_error.Error] = h.run(kernels.REGISTRY[i], reps);
         if (sel e.err) {
-            print.eprintlnf("mach-bench: {}: clock failed: {}", kernels.REGISTRY[i].name, io_error.message(e.err));
+            print.eprintlnf("mach-bench: {}: clock failed: {}", kernels.REGISTRY[i].name, os.message(e.err));
             ret 1;
         }
         i = i + 1;
