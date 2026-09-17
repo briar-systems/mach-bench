@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (#18).
 
 ### Changed
+- `mach.toml` declares the compiler range `mach = "^5.3"`, so mach 5.3 and
+  later no longer warn on every build (#20).
 - Releases run through the family's shared release workflow. A pushed `v*`
   tag checks the tag against the manifest version and the CHANGELOG, runs
   every CI leg, and publishes the GitHub release with the CHANGELOG section
