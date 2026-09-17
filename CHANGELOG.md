@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- An MIT `LICENSE`, copyright Briar Systems LLC, linked from the README
+  (#18).
+
 ### Changed
 - Releases run through the family's shared release workflow. A pushed `v*`
   tag checks the tag against the manifest version and the CHANGELOG, runs

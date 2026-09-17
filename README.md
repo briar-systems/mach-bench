@@ -190,3 +190,7 @@ src/harness.mach  timing harness, emits the same line format as bench.c
 src/main.mach     entry point
 out/              build output and captured runs (not tracked)
 ```
+
+## License
+
+MIT. See [LICENSE](LICENSE).
