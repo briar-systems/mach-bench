@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Releases run through the family's shared release workflow. A pushed `v*`
+  tag checks the tag against the manifest version and the CHANGELOG, runs
+  every CI leg, and publishes the GitHub release with the CHANGELOG section
+  as its notes (#16).
+
 ## [0.1.1] - 2026-09-16
 
 ### Changed
