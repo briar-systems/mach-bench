@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-16
+
 ### Changed
 - Requires mach 5.2.0 or later and std 4.0.0. `dep/std` is pinned to
   `tag/v4.0.0`, and the clock failure message now comes from
@@ -51,5 +53,6 @@ First release.
   binary it found first, so a tree holding an `--all-targets` build no longer
   runs a darwin binary on linux (#3).
 
-[Unreleased]: https://github.com/briar-systems/mach-bench/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/briar-systems/mach-bench/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/briar-systems/mach-bench/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/briar-systems/mach-bench/releases/tag/v0.1.0
