@@ -12,8 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (#18).
 
 ### Changed
-- `release.yml` serializes runs per tag with a `concurrency` group, as the
-  shared release workflow now requires (#22).
+- `cd.yml` (formerly `release.yml`) serializes runs per tag with a `concurrency` group, as the
+  shared release workflow now requires (#22), and carries the family's name
+  for the tag-triggered workflow (#24).
 - `mach.toml` declares the compiler range `mach = "^5.3"`, so mach 5.3 and
   later no longer warn on every build (#20).
 - Releases run through the family's shared release workflow. A pushed `v*`
