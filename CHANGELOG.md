@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (#18).
 
 ### Changed
+- Requires mach 5.9.0 or later and std 6.0.0. `[dep.std]` declares
+  `version = "^6.0"` with the gitlink pinned at v6.0.0. The harness times
+  kernels on the monotonic `time.instant` and `time.elapsed`, since std 5.0
+  removed `time.monotonic`, `time.Clock` and `time.time_sub` (#26).
 - `cd.yml` (formerly `release.yml`) serializes runs per tag with a `concurrency` group, as the
   shared release workflow now requires (#22), and carries the family's name
   for the tag-triggered workflow (#24).

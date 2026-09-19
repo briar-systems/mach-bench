@@ -54,7 +54,7 @@ fun time_kernel(k: Kernel) time.Elapsed {
     var acc:  f64 = 0.0;
     var last: f64 = 0.0;
 
-    val t0: time.Clock = time.monotonic();
+    val t0: time.InstantClock = time.instant();
     if (sel t0.err) { ret time.Elapsed.err{t0.err}; }
     var i: i64 = 0;
     for (i < k.iters) {
@@ -62,14 +62,13 @@ fun time_kernel(k: Kernel) time.Elapsed {
         acc  = acc + last;
         i    = i + 1;
     }
-    val t1: time.Clock = time.monotonic();
-    if (sel t1.err) { ret time.Elapsed.err{t1.err}; }
+    val took: time.Elapsed = time.elapsed(t0.ok);
 
     # acc only exists to stop the optimiser discarding the calls; the reported
     # checksum is the kernel's own return value, exact rather than averaged
     sink     = acc;
     checksum = last;
-    ret time.Elapsed.ok{time.time_sub(t1.ok, t0.ok)};
+    ret took;
 }
 
 # checksum produced by the most recent time_kernel call
