@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-19
+
+### Added
+- An MIT `LICENSE`, copyright Briar Systems LLC, linked from the README
+  (#18).
+
+### Changed
+- Requires mach 5.9.0 or later and std 6.0.0. `[dep.std]` declares
+  `version = "^6.0"` with the gitlink pinned at v6.0.0. The harness times
+  kernels on the monotonic `time.instant` and `time.elapsed`, since std 5.0
+  removed `time.monotonic`, `time.Clock` and `time.time_sub` (#26).
+- `cd.yml` (formerly `release.yml`) serializes runs per tag with a `concurrency` group, as the
+  shared release workflow now requires (#22), and carries the family's name
+  for the tag-triggered workflow (#24).
+- `mach.toml` declares the compiler range `mach = "^5.3"`, so mach 5.3 and
+  later no longer warn on every build (#20).
+- Releases run through the family's shared release workflow. A pushed `v*`
+  tag checks the tag against the manifest version and the CHANGELOG, runs
+  every CI leg, and publishes the GitHub release with the CHANGELOG section
+  as its notes (#16).
+
 ## [0.1.1] - 2026-09-16
 
 ### Changed
@@ -53,6 +74,7 @@ First release.
   binary it found first, so a tree holding an `--all-targets` build no longer
   runs a darwin binary on linux (#3).
 
-[Unreleased]: https://github.com/briar-systems/mach-bench/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/briar-systems/mach-bench/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/briar-systems/mach-bench/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/briar-systems/mach-bench/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/briar-systems/mach-bench/releases/tag/v0.1.0
