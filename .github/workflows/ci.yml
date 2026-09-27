@@ -27,6 +27,7 @@ jobs:
       skip-legs: '["aarch64-linux", "aarch64-darwin"]'
       profiles: '["debug", "release", "reassoc"]'
       test: false
+      mach-version: v6.3.0
 
   gate:
     if: always()
