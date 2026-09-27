@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-26
+
+### Changed
+- Requires mach 6.3.0 or later and std 9.0.0. `mach.toml` declares
+  `mach = "^6.3"` and `[dep.std]` declares `version = "^9.0"` with the
+  gitlink pinned at v9.0.0, the first std line that accepts mach 6. No
+  source site changed shape. CI seeds mach v6.3.0 in place of the family
+  pin (#30).
+
 ## [0.2.0] - 2026-09-19
 
 ### Added
@@ -74,7 +83,8 @@ First release.
   binary it found first, so a tree holding an `--all-targets` build no longer
   runs a darwin binary on linux (#3).
 
-[Unreleased]: https://github.com/briar-systems/mach-bench/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/briar-systems/mach-bench/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/briar-systems/mach-bench/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/briar-systems/mach-bench/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/briar-systems/mach-bench/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/briar-systems/mach-bench/releases/tag/v0.1.0
