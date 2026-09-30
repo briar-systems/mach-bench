@@ -121,7 +121,7 @@ done
 
 ASM_FLAG=
 [ "$WANT_ASM" -eq 1 ] && ASM_FLAG=--emit-asm
-# the host target by name: out/ can also hold other targets' binaries from an
+# the host target by name: out/ can also hold other targets' binaries from a
 # multi-target build, and those do not run here
 HOST=$($MACH info 2>/dev/null | awk '/^host:/ {print $2}')
 [ -n "$HOST" ] || { echo "bench.sh: '$MACH info' reported no host target" >&2; exit 1; }
