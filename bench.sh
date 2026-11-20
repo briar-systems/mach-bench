@@ -48,8 +48,9 @@ while [ $# -gt 0 ]; do
 done
 
 # C variants are compiled at the baseline x86-64 ISA (SSE2) to match the
-# `isa` declared for the Mach target -- comparing against -march=native would
-# hand C an instruction set the Mach build is not allowed to emit.
+# Mach target, which names no `isa` and so builds for the baseline --
+# comparing against -march=native would hand C an instruction set the Mach
+# build is not allowed to emit.
 CFLAGS_COMMON="-std=c11 -Wall -Wextra"
 VARIANTS="O2 O3"
 flags_for() {
@@ -106,8 +107,10 @@ profile_key() {
 }
 SIMD=$(profile_key simd)
 [ -n "$SIMD" ] || SIMD="?"
-REASSOC=$(profile_key float_reassoc)
-[ -n "$REASSOC" ] || REASSOC="?"
+# what the profile relaxes, as `float-reassoc`; a profile with no `relax` key
+# relaxes nothing
+RELAX=$(profile_key relax | tr -d '[]" ')
+[ -n "$RELAX" ] || RELAX="none"
 
 for v in $VARIANTS; do
     # kernels and harness stay separate translation units, and no LTO, so the
@@ -120,7 +123,7 @@ for v in $VARIANTS; do
 done
 
 ASM_FLAG=
-[ "$WANT_ASM" -eq 1 ] && ASM_FLAG=--emit-asm
+[ "$WANT_ASM" -eq 1 ] && ASM_FLAG="--emit asm --emit exe"
 # the host target by name: out/ can also hold other targets' binaries from a
 # multi-target build, and those do not run here
 HOST=$($MACH info 2>/dev/null | awk '/^host:/ {print $2}')
@@ -158,7 +161,7 @@ CC_VER=$($CC --version 2>/dev/null | head -1)
 # shellcheck disable=SC2086
 awk -v variants="$VARIANTS" -v outdir="$OUT/run" -v filter="$FILTER" \
     -v rounds="$ROUNDS" -v machver="$MACH_VER" -v ccver="$CC_VER" -v host="$HOST" \
-    -v profile="$PROFILE" -v simd="$SIMD" -v reassoc="$REASSOC" -v reps="$REPS" \
+    -v profile="$PROFILE" -v simd="$SIMD" -v relax="$RELAX" -v reps="$REPS" \
     -v check="$WANT_CHECK" '
 function human(ns,   u) {
     if (ns < 1000)    { return sprintf("%.1f ns", ns) }
@@ -226,7 +229,7 @@ BEGIN {
     for (k in mt) if (!(k in tol)) { missing = missing " " k; lone++ }
 
     printf "\n  mach-bench  ·  %s  ·  %s  ·  %s\n", machver, ccver, host
-    printf "  profile %s (simd=%s, float_reassoc=%s)  ·  best of %s rounds x %s reps  ·  C at baseline x86-64\n\n", profile, simd, reassoc, rounds, reps
+    printf "  profile %s (simd=%s, relax=%s)  ·  best of %s rounds x %s reps  ·  C at baseline x86-64\n\n", profile, simd, relax, rounds, reps
 
     w = 16
     line = sprintf("  %-*s", w, "kernel")
