@@ -320,8 +320,8 @@ static double k_binsearch(void) {
 }
 
 // C-idiomatic error handling: an int status plus an out-parameter, checked
-// every iteration on a path that never fails. the Mach side uses Result[i64,
-// str], so this measures each language's ordinary error-propagation idiom
+// every iteration on a path that never fails. the Mach side uses res[i64,
+// StepError], so this measures each language's ordinary error-propagation idiom
 static int step_checked(int32_t v, int64_t *out) {
     if (v < 0) return 1;
     *out = (int64_t)v * 3 + 1;

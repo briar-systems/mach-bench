@@ -71,7 +71,7 @@ loop: calls, records, branches, recursion, and error handling.
 | `recurse_fib` | naive recursion | call overhead and stack traffic |
 | `str_search` | substring search | nested loop with an early exit |
 | `binsearch` | binary search | unpredictable branches over a large working set |
-| `result_chain` | `Result[T, E]` vs error code | each language's ordinary error-propagation idiom |
+| `result_chain` | `res[T, E]` vs error code | each language's ordinary error-propagation idiom |
 
 `u64_fnv1a` is the honesty check. Nothing can vectorise it, so both sides should
 land on top of each other. If that row drifts far from `1.00x`, suspect the
@@ -80,14 +80,15 @@ harness before believing any other row.
 Two kernels compare *idioms* rather than identical code, because the languages
 do not share one. `call_indirect` goes through a data-dependent function pointer
 so neither compiler can devirtualise it. `result_chain` pairs Mach's
-`Result[i64, str]` against C's `int` status plus out-parameter — the ordinary
+`res[i64, StepError]` against C's `int` status plus out-parameter — the ordinary
 way each language propagates an error. `branch_dispatch` uses an `if`/`else`
 chain on both sides because Mach has no `switch`.
 
 ## Methodology
 
-**Same ISA.** The Mach target declares `isa = "x86_64"`, so C is compiled at the
-baseline x86-64 ISA (SSE2) with no `-march` flag. Comparing against
+**Same ISA.** The Mach target is `arch = "x86_64"` and names no `isa`, which is
+the baseline, so C is compiled at the baseline x86-64 ISA (SSE2) with no `-march`
+flag. Comparing against
 `-march=native` would hand C an instruction set the Mach build is not allowed to
 emit. `--native` adds that column anyway when you want the host-ISA ceiling, but
 it is not a like-for-like number.
@@ -141,16 +142,17 @@ informative.
 | `--rounds <n>` | interleaved passes over every binary (default 3) |
 | `--filter <substr>` | only report kernels whose name contains `<substr>` |
 | `--native` | add a `cc -O3 -march=native` column (host ISA, not baseline) |
-| `--fast-math` | add a `cc -O3 -ffast-math` column (permits FP reassociation) |
+| `--fast-math` | compare `cc -O3 -ffast-math` against the Mach `reassoc` profile, both permitting FP reassociation |
 | `--asm` | also emit assembly for both sides |
 | `--check` | correctness only: one rep and one round unless given, and exit 1 when a kernel's checksums disagree beyond its tolerance or a kernel is registered on one side only |
 
 `CC` and `MACH` override the compilers used.
 
-`--fast-math` is the interesting one for reductions: C will not vectorise an FP
-reduction without it, because doing so changes the result. If Mach reassociates
-by default, then the honest comparison for `f64_dot` and `f32_norm` is against
-the `cc fast` column, not `cc -O3`.
+`--fast-math` is the interesting one for reductions: neither compiler will
+vectorise an FP reduction without permission, because doing so changes the
+result. Mach float arithmetic is exact unless a profile relaxes it, so the
+`reassoc` profile states `relax = ["float-reassoc"]`, and `--fast-math` builds it
+against `cc -O3 -ffast-math` in place of the usual columns.
 
 `--asm` writes C assembly to `out/c/kernels-<variant>.s` and Mach assembly to
 `out/<target>/<profile>/asm/bench/kernels.s`. The two are different dialects, so
@@ -187,7 +189,7 @@ c/bench.c         timing harness
 src/data.mach     the same sizes, the same PRNG, the same draw order
 src/kernels.mach  the kernels, mirroring c/kernels.c
 src/harness.mach  timing harness, emits the same line format as bench.c
-src/main.mach     entry point
+src/bin/main.mach entry point
 out/              build output and captured runs (not tracked)
 ```
 

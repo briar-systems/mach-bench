@@ -2,7 +2,7 @@
 //
 // runs every registered kernel and writes one machine-readable line per kernel:
 //
-//     <name>\t<best_ns>\t<iters>\t<checksum>
+//     <name>\t<best_ns>\t<iters>\t<checksum>\t<tol>\t<group>
 //
 // best_ns is the fastest of `reps` timed repetitions, each repetition being
 // `iters` back-to-back kernel invocations. minimum rather than mean, because

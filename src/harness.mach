@@ -2,11 +2,12 @@
 #
 # emits one machine-readable line per kernel:
 #
-#     <name>\t<best_ns>\t<iters>\t<checksum>
+#     <name>\t<best_ns>\t<iters>\t<checksum>\t<tol>\t<group>
 #
 # best_ns is the fastest of `reps` timed repetitions, each repetition being
 # `iters` back-to-back kernel invocations. minimum rather than mean, because the
-# fastest observed run is the one least polluted by scheduling noise.
+# fastest observed run is the one least polluted by scheduling noise. tol and
+# group are the kernel's own, so the table needs no second registry.
 #
 # c/bench.c emits the identical format.
 
