@@ -270,7 +270,7 @@ fun k_recurse_fib() f64 {
 
 # naive substring search -- nested loop with an early exit
 fun k_str_search() f64 {
-    var found: i64 = 0 - 1;
+    var found: i64 = -1;
     var i:     i64 = 0;
     for (i + d.NEEDLE_LEN <= d.N_BYTES) {
         var k: i64 = 0;
@@ -294,7 +294,7 @@ fun k_binsearch() f64 {
         val key: i32 = ((d.i32_a[q] * 17 + (q::i32) * 3) % ((2 * d.N_SMALL)::i32));
         var lo:  i64 = 0;
         var hi:  i64 = d.N_SMALL - 1;
-        var res: i64 = 0 - 1;
+        var res: i64 = -1;
         for (lo <= hi) {
             val mid: i64 = (lo + hi) / 2;
             if (d.sorted_a[mid] == key) {
@@ -330,7 +330,7 @@ fun k_result_chain() f64 {
     var i:   i64 = 0;
     for (i < d.N_SMALL) {
         val r: res[i64, StepError] = step_checked(d.i32_a[i]);
-        if (sel r.err) { ret 0.0 - 1.0; }
+        if (sel r.err) { ret -1.0; }
         acc = acc + r.ok;
         i   = i + 1;
     }
