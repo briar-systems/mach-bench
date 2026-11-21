@@ -158,11 +158,20 @@ machine under load this was worth a factor of two. If the round-to-round spread
 exceeds 1.25x the run prints a note naming the worst kernel — treat the absolute
 numbers from such a run as unusable and re-run idle.
 
-All kernels share one binary per side, so adding or reordering a kernel can shift
-another kernel's code alignment and move its time by 10-30%. Compiling each
-kernel separately would decouple them, at the cost of one artifact per kernel in
-the manifest and a full data re-init per process; that trade has not been worth
-it so far, since load drift dominates layout drift by a wide margin.
+**Placement.** Where a loop lands in memory moves its time: the same
+instructions have measured a third apart at different starts inside one 64-byte
+line. All kernels share one binary per side, so without care a kernel's time
+would depend on whatever is linked ahead of it. Every kernel function, and every
+function a kernel calls, therefore starts on a 64-byte boundary on both sides
+(`#[align(64)]` in `src/kernels.mach`, `-falign-functions=64` for C), and adding
+or changing one kernel does not move another's code.
+
+Two things are left to the compilers on purpose, because they are part of what a
+row measures. The loop's position inside its function is the compiler's own
+output. The data arrays sit wherever each compiler's default layout puts them,
+and adding an array can move the ones declared after it. Treat a row that
+changes with no change to its own code or compiler as placement before anything
+else.
 
 **No cheating by the optimiser.** Kernels live in a separate translation unit
 (C) and a separate module (Mach) from the timing loop, and the C side is built
