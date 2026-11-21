@@ -169,15 +169,17 @@ fun k_call_indirect() f64 {
 }
 
 # array-of-structures traversal: six f32 fields at a 24-byte stride. the f64
-# accumulator keeps the result exact, so this stays a bit-exact comparison
+# accumulator keeps the result exact, so this stays a bit-exact comparison.
+# the three terms are summed before they reach acc, as C's `acc += a + b + c`
+# sums them: float addition does not regroup, so the grouping is the kernel
 fun k_rec_particle() f64 {
     val dt:  f32 = 0.00390625;
     var acc: f64 = 0.0;
     var i:   i64 = 0;
     for (i < d.N_PART) {
-        acc = acc + (d.parts[i].x + d.parts[i].vx * dt)::f64
+        acc = acc + ((d.parts[i].x + d.parts[i].vx * dt)::f64
             + (d.parts[i].y + d.parts[i].vy * dt)::f64
-            + (d.parts[i].z + d.parts[i].vz * dt)::f64;
+            + (d.parts[i].z + d.parts[i].vz * dt)::f64);
         i = i + 1;
     }
     ret acc;
