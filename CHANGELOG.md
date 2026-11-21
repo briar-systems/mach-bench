@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- `rec_particle` sums its three terms before adding them to the accumulator,
+  as the C kernel's `acc += a + b + c` does. The Mach kernel was written
+  `acc = acc + a + b + c`, which carries three dependent float adds through
+  the accumulator per particle where C carries one, so the row measured the
+  kernel's shape rather than codegen. The checksum is unchanged (#34).
+
 ## [0.3.0] - 2026-09-26
 
 ### Changed
