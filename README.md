@@ -110,6 +110,14 @@ both sides because Mach has no `switch`. `call_direct`, `rec_return` and
 (`#[inline("never")]` and `__attribute__((noinline))`), so the call is a real
 one.
 
+`recurse_fib` and `tree_sum` measure a recursion rewrite GCC has and Mach does
+not: GCC turns one of the two recursive calls into a loop with an accumulator
+and inlines the other several levels deep. Nearly all of those two rows is that
+rewrite, not codegen distance. Building the C side with
+`-fno-inline -fno-optimize-sibling-calls` turns it off, and on one machine
+(GCC 16.2.1, mach 7.0.0, a Ryzen 7 5800X3D) `tree_sum` then reads about 1.10x
+and `recurse_fib` about 1.22x.
+
 ### Basis
 
 Every kernel states what its row compares, as `like` or `idiom`, and both
