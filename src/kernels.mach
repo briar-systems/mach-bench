@@ -10,8 +10,15 @@ use std.types.string.str;
 use d: bench.data;
 use h: bench.harness;
 
+# every kernel, and every function a kernel calls, starts on a 64-byte boundary,
+# so where one lands does not depend on the code linked ahead of it. c/kernels.c
+# is built with -falign-functions=64 for the same reason. the loop inside is
+# placed by the compiler, and stays part of what a row measures
+val KERNEL_ALIGN: i64 = 64;
+
 # contiguous f32 multiply-add into a distinct output -- the textbook
 # autovectorisation target
+#[align(KERNEL_ALIGN)]
 fun k_f32_saxpy() f64 {
     val alpha: f32 = 1.0009765625;
     var i:     i64 = 0;
@@ -24,6 +31,7 @@ fun k_f32_saxpy() f64 {
 
 # f64 reduction: vectorising this reassociates the sum, so the checksum is
 # compared with a relative tolerance rather than bit-exactly
+#[align(KERNEL_ALIGN)]
 fun k_f64_dot() f64 {
     var acc: f64 = 0.0;
     var i:   i64 = 0;
@@ -35,6 +43,7 @@ fun k_f64_dot() f64 {
 }
 
 # f32 sum of squares -- reduction with a single multiply per element
+#[align(KERNEL_ALIGN)]
 fun k_f32_norm() f64 {
     var acc: f32 = 0.0;
     var i:   i64 = 0;
@@ -47,6 +56,7 @@ fun k_f32_norm() f64 {
 
 # integer multiply-accumulate; inputs stay in [0,255] so the i64 total is
 # exactly representable as f64
+#[align(KERNEL_ALIGN)]
 fun k_i32_madd() f64 {
     var acc: i64 = 0;
     var i:   i64 = 0;
@@ -58,6 +68,7 @@ fun k_i32_madd() f64 {
 }
 
 # byte scan with a compare-accumulate -- vectorises to a packed compare
+#[align(KERNEL_ALIGN)]
 fun k_u8_count() f64 {
     var n: i64 = 0;
     var i: i64 = 0;
@@ -70,6 +81,7 @@ fun k_u8_count() f64 {
 
 # FNV-1a over the byte array. each step depends on the previous one, so this is
 # the control case: a correct vectoriser must leave it scalar
+#[align(KERNEL_ALIGN)]
 fun k_u64_fnv1a() f64 {
     var hash: u64 = 0xCBF29CE484222325; # FNV-1a 64-bit offset basis
     var i:    i64 = 0;
@@ -83,6 +95,7 @@ fun k_u64_fnv1a() f64 {
 
 # data-dependent branch -- tests whether the branch becomes a predicated select
 # or stays a mispredicting jump
+#[align(KERNEL_ALIGN)]
 fun k_i32_filter_sum() f64 {
     var acc: i64 = 0;
     var i:   i64 = 0;
@@ -94,6 +107,7 @@ fun k_i32_filter_sum() f64 {
 }
 
 # loop-carried dependency: each output needs the previous one
+#[align(KERNEL_ALIGN)]
 fun k_i64_prefix_sum() f64 {
     var acc: i64 = 0;
     var i:   i64 = 0;
@@ -106,6 +120,7 @@ fun k_i64_prefix_sum() f64 {
 }
 
 # naive ikj matmul -- the inner loop is a scalar-times-vector accumulate
+#[align(KERNEL_ALIGN)]
 fun k_f32_matmul() f64 {
     var z: i64 = 0;
     for (z < d.MAT_ELEMS) {
@@ -133,6 +148,7 @@ fun k_f32_matmul() f64 {
 
 # STREAM triad over a 24 MB working set -- bandwidth bound, so both sides should
 # converge regardless of how well the loop vectorises
+#[align(KERNEL_ALIGN)]
 fun k_stream_triad() f64 {
     val scalar: f32 = 3.0;
     var i:      i64 = 0;
@@ -145,6 +161,7 @@ fun k_stream_triad() f64 {
 
 # three-point stencil: the same loop as saxpy with the index offset by one
 # either way, which is what a vectoriser has to see through
+#[align(KERNEL_ALIGN)]
 fun k_f32_stencil() f64 {
     var i: i64 = 1;
     for (i < d.N_SMALL - 1) {
@@ -155,6 +172,7 @@ fun k_f32_stencil() f64 {
 }
 
 # bytes widened to float and scaled -- unsigned to float at mixed lane widths
+#[align(KERNEL_ALIGN)]
 fun k_u8_to_f32() f64 {
     var i: i64 = 0;
     for (i < d.N_SMALL) {
@@ -165,6 +183,7 @@ fun k_u8_to_f32() f64 {
 }
 
 # bytes summed into a 64-bit total -- the plain widening reduction
+#[align(KERNEL_ALIGN)]
 fun k_u8_sum() f64 {
     var acc: i64 = 0;
     var i:   i64 = 0;
@@ -176,6 +195,7 @@ fun k_u8_sum() f64 {
 }
 
 # a byte copy written as a loop -- whatever each compiler makes of it
+#[align(KERNEL_ALIGN)]
 fun k_bulk_copy() f64 {
     var i: i64 = 0;
     for (i < d.N_BYTES) {
@@ -186,6 +206,7 @@ fun k_bulk_copy() f64 {
 }
 
 # a byte fill written as a loop
+#[align(KERNEL_ALIGN)]
 fun k_bulk_fill() f64 {
     var i: i64 = 0;
     for (i < d.N_BYTES) {
@@ -197,6 +218,7 @@ fun k_bulk_fill() f64 {
 
 # many short copies whose length comes from the data, 8 to 39 bytes each -- the
 # case where a bulk copy's setup cost shows
+#[align(KERNEL_ALIGN)]
 fun k_copy_short() f64 {
     var total: i64 = 0;
     var r:     i64 = 0;
@@ -216,6 +238,7 @@ fun k_copy_short() f64 {
 }
 
 # multi-limb add with the carry written as compares, the portable spelling
+#[align(KERNEL_ALIGN)]
 fun k_limb_add() f64 {
     var carry: u64 = 0;
     var fold:  u64 = 0;
@@ -235,6 +258,7 @@ fun k_limb_add() f64 {
 
 # a serial mixer whose rotates are written as shift pairs -- each one should
 # become a single rotate
+#[align(KERNEL_ALIGN)]
 fun k_hash_mix() f64 {
     var h: u64 = 0x9E3779B97F4A7C15;
     var i: i64 = 0;
@@ -252,10 +276,12 @@ fun k_hash_mix() f64 {
 
 def StepFun: fun(i32) i32;
 
+#[align(KERNEL_ALIGN)]
 fun step_add(v: i32) i32 {
     ret v + 1;
 }
 
+#[align(KERNEL_ALIGN)]
 fun step_mul(v: i32) i32 {
     ret v * 2;
 }
@@ -264,6 +290,7 @@ var steps: [2]StepFun = [2]StepFun{step_add, step_mul};
 
 # indirect call through a data-dependent function pointer. neither compiler can
 # devirtualise it, so this is call overhead with inlining taken off the table
+#[align(KERNEL_ALIGN)]
 fun k_call_indirect() f64 {
     var acc: i64 = 0;
     var i:   i64 = 0;
@@ -279,6 +306,7 @@ fun k_call_indirect() f64 {
 # accumulator keeps the result exact, so this stays a bit-exact comparison.
 # the three terms are summed before they reach acc, as C's `acc += a + b + c`
 # sums them: float addition does not regroup, so the grouping is the kernel
+#[align(KERNEL_ALIGN)]
 fun k_rec_particle() f64 {
     val dt:  f32 = 0.00390625;
     var acc: f64 = 0.0;
@@ -294,6 +322,7 @@ fun k_rec_particle() f64 {
 
 # pointer chasing over a random Hamiltonian cycle. every load depends on the
 # previous one, so this is memory latency with prefetching defeated
+#[align(KERNEL_ALIGN)]
 fun k_list_walk() f64 {
     var p:   i32 = 0;
     var acc: i64 = 0;
@@ -308,6 +337,7 @@ fun k_list_walk() f64 {
 
 # branchy dispatch over an unpredictable opcode stream. Mach has no switch, so
 # both sides use an if/else chain and the comparison stays like-for-like
+#[align(KERNEL_ALIGN)]
 fun k_branch_dispatch() f64 {
     var acc: i64 = 0;
     var reg: i64 = 1;
@@ -333,6 +363,7 @@ fun k_branch_dispatch() f64 {
 
 # insertion sort over independent blocks -- compare, branch and shift heavy, and
 # refilled each call so it stays idempotent
+#[align(KERNEL_ALIGN)]
 fun k_sort_blocks() f64 {
     var i: i64 = 0;
     for (i < d.N_SORT) {
@@ -366,6 +397,7 @@ fun k_sort_blocks() f64 {
     ret acc::f64;
 }
 
+#[align(KERNEL_ALIGN)]
 fun fib(n: i64) i64 {
     if (n < 2) { ret n; }
     ret fib(n - 1) + fib(n - 2);
@@ -373,11 +405,13 @@ fun fib(n: i64) i64 {
 
 # naive recursion: call overhead, stack traffic, and whatever the optimiser does
 # with a self-recursive tree
+#[align(KERNEL_ALIGN)]
 fun k_recurse_fib() f64 {
     ret fib(d.FIB_N)::f64;
 }
 
 # naive substring search -- nested loop with an early exit
+#[align(KERNEL_ALIGN)]
 fun k_str_search() f64 {
     var found: i64 = -1;
     var i:     i64 = 0;
@@ -396,6 +430,7 @@ fun k_str_search() f64 {
 }
 
 # binary search: unpredictable branches over a working set larger than L2
+#[align(KERNEL_ALIGN)]
 fun k_binsearch() f64 {
     var acc: i64 = 0;
     var q:   i64 = 0;
@@ -423,6 +458,7 @@ fun k_binsearch() f64 {
     ret acc::f64;
 }
 
+#[align(KERNEL_ALIGN)]
 #[inline("never")]
 fun step_scale(v: i32, k: i32) i32 {
     ret v * k + 1;
@@ -430,6 +466,7 @@ fun step_scale(v: i32, k: i32) i32 {
 
 # a direct call neither side may inline -- call overhead with nothing for the
 # optimiser to rewrite
+#[align(KERNEL_ALIGN)]
 fun k_call_direct() f64 {
     var acc: i64 = 0;
     var i:   i64 = 0;
@@ -448,12 +485,14 @@ rec Box {
     e: i64;
 }
 
+#[align(KERNEL_ALIGN)]
 #[inline("never")]
 fun box_make(v: i32) Box {
     val x: Box = Box{a: v::i64, b: (v::i64) * 2, c: (v + 3)::i64, d: (v ^ 5)::i64, e: 1};
     ret x;
 }
 
+#[align(KERNEL_ALIGN)]
 #[inline("never")]
 fun box_step(x: Box) Box {
     var y: Box = x;
@@ -464,6 +503,7 @@ fun box_step(x: Box) Box {
 
 # a 40-byte record made, passed and returned by value through calls neither
 # side may inline -- what an aggregate costs to move across a call
+#[align(KERNEL_ALIGN)]
 fun k_rec_return() f64 {
     var acc: i64 = 0;
     var i:   i64 = 0;
@@ -479,6 +519,7 @@ fun k_rec_return() f64 {
 
 # array-of-structures update: three fields read, three stored back, at a
 # 36-byte stride
+#[align(KERNEL_ALIGN)]
 fun k_rec_update() f64 {
     val dt: f32 = 0.00390625;
     var i:  i64 = 0;
@@ -493,6 +534,7 @@ fun k_rec_update() f64 {
 
 # sixteen-way dispatch over an unpredictable opcode stream, as an if/or chain on
 # both sides. every arm keeps reg under 2^20, so nothing overflows
+#[align(KERNEL_ALIGN)]
 fun k_op_dispatch() f64 {
     var acc: i64 = 0;
     var reg: i64 = 1;
@@ -554,6 +596,7 @@ fun k_op_dispatch() f64 {
 
 # decimal integers parsed from a byte buffer -- short data-dependent loops and
 # compares on every byte
+#[align(KERNEL_ALIGN)]
 fun k_parse_ints() f64 {
     var sum:   i64 = 0;
     var count: i64 = 0;
@@ -576,6 +619,7 @@ fun k_parse_ints() f64 {
     ret (sum + count)::f64;
 }
 
+#[align(KERNEL_ALIGN)]
 fun tree_walk(n: i32) i64 {
     if (n < 0) { ret 0; }
     ret d.nodes[n::i64].val::i64 + tree_walk(d.nodes[n::i64].left) + tree_walk(d.nodes[n::i64].right);
@@ -583,6 +627,7 @@ fun tree_walk(n: i32) i64 {
 
 # recursive walk of a tree stored in shuffled order -- recursion whose shape
 # comes from the data
+#[align(KERNEL_ALIGN)]
 fun k_tree_sum() f64 {
     ret tree_walk(d.tree_root)::f64;
 }
@@ -593,11 +638,13 @@ fun k_tree_sum() f64 {
 # idiom
 tag StepError: u8 { negative; }
 
+#[align(KERNEL_ALIGN)]
 fun step_checked(v: i32) res[i64, StepError] {
     if (v < 0) { ret res[i64, StepError].err{StepError.negative{}}; }
     ret res[i64, StepError].ok{(v::i64) * 3 + 1};
 }
 
+#[align(KERNEL_ALIGN)]
 fun k_result_chain() f64 {
     var acc: i64 = 0;
     var i:   i64 = 0;
@@ -616,6 +663,7 @@ rec Fault {
     arg:  i64;
 }
 
+#[align(KERNEL_ALIGN)]
 #[inline("never")]
 fun step_wide(v: i32, at: i64) res[i64, Fault] {
     if (v < 0) { ret res[i64, Fault].err{Fault{code: 1, at: at, arg: v::i64}}; }
@@ -625,6 +673,7 @@ fun step_wide(v: i32, at: i64) res[i64, Fault] {
 # the same error path with a three-word error record and a callee neither side
 # may inline. c/kernels.c uses a status and two out-parameters, so this
 # measures what each language's convention costs when the call is a real one
+#[align(KERNEL_ALIGN)]
 fun k_result_wide() f64 {
     var acc: i64 = 0;
     var i:   i64 = 0;
@@ -638,6 +687,7 @@ fun k_result_wide() f64 {
 }
 
 # a `tag` read with `sel`. c/kernels.c reads a tagged union with a switch
+#[align(KERNEL_ALIGN)]
 fun k_tag_dispatch() f64 {
     var acc: i64 = 0;
     var i:   i64 = 0;
@@ -662,6 +712,7 @@ fun k_tag_dispatch() f64 {
 # saxpy written with explicit vectors over array windows -- vector lowering
 # with the autovectoriser taken out of it. c/kernels.c uses the GCC vector
 # extension
+#[align(KERNEL_ALIGN)]
 fun k_vec_saxpy() f64 {
     val alpha: f32x4 = f32x4{1.0009765625, 1.0009765625, 1.0009765625, 1.0009765625};
     var i:     i64   = 0;

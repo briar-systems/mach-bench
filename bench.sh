@@ -51,7 +51,11 @@ done
 # Mach target, which names no `isa` and so builds for the baseline --
 # comparing against -march=native would hand C an instruction set the Mach
 # build is not allowed to emit.
-CFLAGS_COMMON="-std=c11 -Wall -Wextra"
+#
+# every function starts on a 64-byte boundary, as every kernel function does on
+# the Mach side, so where a kernel lands does not depend on the code linked
+# ahead of it.
+CFLAGS_COMMON="-std=c11 -Wall -Wextra -falign-functions=64"
 VARIANTS="O2 O3"
 flags_for() {
     case $1 in
