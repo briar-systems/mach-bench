@@ -2,12 +2,12 @@
 #
 # emits one machine-readable line per kernel:
 #
-#     <name>\t<best_ns>\t<iters>\t<checksum>\t<tol>\t<group>
+#     <name>\t<best_ns>\t<iters>\t<checksum>\t<tol>\t<group>\t<basis>
 #
 # best_ns is the fastest of `reps` timed repetitions, each repetition being
 # `iters` back-to-back kernel invocations. minimum rather than mean, because the
-# fastest observed run is the one least polluted by scheduling noise. tol and
-# group are the kernel's own, so the table needs no second registry.
+# fastest observed run is the one least polluted by scheduling noise. tol, group
+# and basis are the kernel's own, so the table needs no second registry.
 #
 # c/bench.c emits the identical format.
 
@@ -36,12 +36,16 @@ pub def KernelFun: fun() f64;
 #        result (0); the exceptions are f32 reductions, where vectorising
 #        reassociates the sum and f32's 24-bit mantissa cannot absorb it.
 # group: the table section the kernel is reported under
+# basis: what the row compares. "like" is the same statements on both sides,
+#        "idiom" is each language's ordinary way of writing the thing where the
+#        two do not share one. only "like" rows enter the overall geomean.
 pub rec Kernel {
     name:  str;
     fn:    KernelFun;
     iters: i64;
     tol:   f64;
     group: str;
+    basis: str;
 }
 
 # keeps the optimiser from discarding kernel results it can prove unused
@@ -95,6 +99,6 @@ pub fun run(k: Kernel, reps: i64) err[io_error.Error] {
         r = r + 1;
     }
 
-    print.printlnf("{}\t{}\t{}\t{}\t{}\t{}", k.name, best, k.iters, checksum, k.tol, k.group);
+    print.printlnf("{}\t{}\t{}\t{}\t{}\t{}\t{}", k.name, best, k.iters, checksum, k.tol, k.group, k.basis);
     ret err[io_error.Error].ok{};
 }

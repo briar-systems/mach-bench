@@ -205,7 +205,7 @@ BEGIN {
                 if (per > tmax[key]) tmax[key] = per
                 chk[key] = a[4] + 0
                 if (i == 1 && rd == 1) {
-                    order[++n] = a[1]; tol[a[1]] = a[5] + 0; grp[a[1]] = a[6]
+                    order[++n] = a[1]; tol[a[1]] = a[5] + 0; grp[a[1]] = a[6]; basis[a[1]] = a[7]
                 }
             }
             close(f)
@@ -219,6 +219,7 @@ BEGIN {
             if (!(a[1] in mt) || per < mt[a[1]]) mt[a[1]] = per
             if (per > mtmax[a[1]]) mtmax[a[1]] = per
             mchk[a[1]] = a[4] + 0
+            mbasis[a[1]] = a[7]
         }
         close(f)
     }
@@ -227,6 +228,14 @@ BEGIN {
     # must be found before the table reads mt[] and creates the missing keys
     for (r = 1; r <= n; r++) if (!(order[r] in mt)) { missing = missing " " order[r]; lone++ }
     for (k in mt) if (!(k in tol)) { missing = missing " " k; lone++ }
+
+    # the basis of a row decides whether it is scored, so the two registries
+    # must agree on it and it must be one this script knows
+    for (r = 1; r <= n; r++) {
+        k = order[r]
+        if (basis[k] != "like" && basis[k] != "idiom") { badbasis = badbasis " " k; lone++ }
+        else if ((k in mbasis) && mbasis[k] != basis[k]) { badbasis = badbasis " " k; lone++ }
+    }
 
     printf "\n  mach-bench  ·  %s  ·  %s  ·  %s\n", machver, ccver, host
     printf "  profile %s (simd=%s, relax=%s)  ·  best of %s rounds x %s reps  ·  C at baseline x86-64\n\n", profile, simd, relax, rounds, reps
@@ -262,7 +271,9 @@ BEGIN {
         for (i = 1; i <= nv; i++) {
             ratio = mt[k] / t[vs[i], k]
             line = line sprintf("%10s", sprintf("%.2fx", ratio))
-            gsum[vs[i]] += log(ratio); gn[vs[i]]++
+            # an idiom row compares two different programs, so it is shown and
+            # subtotalled with its group but kept out of the overall geomean
+            if (basis[k] == "like") { gsum[vs[i]] += log(ratio); gn[vs[i]]++ }
             ggsum[grp[k], vs[i]] += log(ratio); ggn[grp[k], vs[i]]++
         }
 
@@ -289,7 +300,7 @@ BEGIN {
     if (prevgrp != "") subtotal(prevgrp)
 
     print "  " rule
-    line = sprintf("  %-*s", w, "geomean (all)")
+    line = sprintf("  %-*s", w, "geomean (like)")
     for (i = 1; i <= nv; i++) line = line sprintf("%11s", "")
     line = line sprintf("%11s", "")
     for (i = 1; i <= nv; i++)
@@ -298,8 +309,10 @@ BEGIN {
 
     printf "\n  ratio = mach / C  ·  lower is better  ·  1.00x is parity\n"
     printf "  chk: = bit-identical   ~ within kernel tolerance   ! disagreement\n"
+    printf "  geomean (like) covers the rows that are the same statements on both sides, not the idiom rows\n"
     if (shown == 0) printf "\n  no kernels matched filter \"%s\"\n", filter
     if (missing != "") printf "\n  WARNING: registered on one side only:%s\n", missing
+    if (badbasis != "") printf "\n  WARNING: basis unknown or different on the two sides:%s\n", badbasis
     if (bad > 0) printf "\n  WARNING: %d kernel(s) disagree beyond tolerance -- results are not comparable\n", bad
     if (noisy > 1.25)
         printf "\n  NOTE: round-to-round spread up to %.2fx (%s) -- machine was busy;\n        ratios survive interleaving but re-run idle for trustworthy absolutes\n", noisy, noisy_k

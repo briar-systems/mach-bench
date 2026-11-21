@@ -2,7 +2,7 @@
 //
 // runs every registered kernel and writes one machine-readable line per kernel:
 //
-//     <name>\t<best_ns>\t<iters>\t<checksum>\t<tol>\t<group>
+//     <name>\t<best_ns>\t<iters>\t<checksum>\t<tol>\t<group>\t<basis>
 //
 // best_ns is the fastest of `reps` timed repetitions, each repetition being
 // `iters` back-to-back kernel invocations. minimum rather than mean, because
@@ -71,8 +71,8 @@ int main(int argc, char **argv) {
             if (r == 0 || ns < best) best = ns;
         }
 
-        printf("%s\t%lld\t%d\t%.17g\t%g\t%s\n", kernels[k].name, best, kernels[k].iters, checksum,
-               kernels[k].tol, kernels[k].group);
+        printf("%s\t%lld\t%d\t%.17g\t%g\t%s\t%s\n", kernels[k].name, best, kernels[k].iters, checksum,
+               kernels[k].tol, kernels[k].group, kernels[k].basis);
     }
 
     return 0;
