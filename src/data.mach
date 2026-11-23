@@ -17,6 +17,10 @@ pub val N_QUERY:    i64 = 8192; # binary-search queries
 pub val FIB_N:      i64 = 27; # naive recursive fibonacci depth
 pub val NEEDLE_AT:  i64 = 200000; # offset in u8_a the search needle comes from
 pub val NEEDLE_LEN: i64 = 8;
+pub val N_LIMB:     i64 = 32768; # u64 limbs, 256 KB per array
+pub val N_TREE:     i64 = 16384; # tree nodes, 12 bytes each
+pub val N_ITEM:     i64 = 16384; # tagged items
+pub val N_TEXT:     i64 = 262144; # decimal text, 256 KB
 
 # a particle in array-of-structures layout; c/bench.h declares the same struct
 # so the two agree on field order and stride
@@ -29,26 +33,69 @@ pub rec Particle {
     vz: f32;
 }
 
-pub var f32_a:    [N_SMALL]f32;
-pub var f32_b:    [N_SMALL]f32;
-pub var f32_out:  [N_SMALL]f32;
-pub var f64_a:    [N_SMALL]f64;
-pub var f64_b:    [N_SMALL]f64;
-pub var i32_a:    [N_SMALL]i32;
-pub var i32_b:    [N_SMALL]i32;
-pub var i64_out:  [N_SMALL]i64;
-pub var u8_a:     [N_BYTES]u8;
-pub var st_a:     [N_STREAM]f32;
-pub var st_b:     [N_STREAM]f32;
-pub var st_out:   [N_STREAM]f32;
-pub var mat_a:    [MAT_ELEMS]f32;
-pub var mat_b:    [MAT_ELEMS]f32;
-pub var mat_out:  [MAT_ELEMS]f32;
-pub var parts:    [N_PART]Particle;
-pub var chase:    [N_SMALL]i32; # a single random cycle over [0, N_SMALL)
-pub var sortbuf:  [N_SORT]i32; # scratch, refilled by the sort kernel
-pub var sorted_a: [N_SMALL]i32; # strictly ascending: sorted_a[i] == 2*i
-pub var needle:   [NEEDLE_LEN]u8;
+# a particle with a slot for its next position, so an update stores back
+# without changing its own inputs
+pub rec Body {
+    x:  f32;
+    y:  f32;
+    z:  f32;
+    vx: f32;
+    vy: f32;
+    vz: f32;
+    nx: f32;
+    ny: f32;
+    nz: f32;
+}
+
+# a binary tree node linked by index, -1 for no child
+pub rec Node {
+    left:  i32;
+    right: i32;
+    val:   i32;
+}
+
+pub rec Pair {
+    a: i32;
+    b: i32;
+}
+
+# a tagged value; c/bench.h declares the same cases as a kind and a union
+pub tag Item: u8 {
+    none;
+    small: i32;
+    pair:  Pair;
+    wide:  i64;
+}
+
+pub var f32_a:     [N_SMALL]f32;
+pub var f32_b:     [N_SMALL]f32;
+pub var f32_out:   [N_SMALL]f32;
+pub var f64_a:     [N_SMALL]f64;
+pub var f64_b:     [N_SMALL]f64;
+pub var i32_a:     [N_SMALL]i32;
+pub var i32_b:     [N_SMALL]i32;
+pub var i64_out:   [N_SMALL]i64;
+pub var u8_a:      [N_BYTES]u8;
+pub var st_a:      [N_STREAM]f32;
+pub var st_b:      [N_STREAM]f32;
+pub var st_out:    [N_STREAM]f32;
+pub var mat_a:     [MAT_ELEMS]f32;
+pub var mat_b:     [MAT_ELEMS]f32;
+pub var mat_out:   [MAT_ELEMS]f32;
+pub var parts:     [N_PART]Particle;
+pub var chase:     [N_SMALL]i32; # a single random cycle over [0, N_SMALL)
+pub var sortbuf:   [N_SORT]i32; # scratch, refilled by the sort kernel
+pub var sorted_a:  [N_SMALL]i32; # strictly ascending: sorted_a[i] == 2*i
+pub var needle:    [NEEDLE_LEN]u8;
+pub var limb_a:    [N_LIMB]u64;
+pub var limb_b:    [N_LIMB]u64;
+pub var limb_out:  [N_LIMB]u64;
+pub var u8_out:    [N_BYTES]u8;
+pub var bodies:    [N_PART]Body;
+pub var nodes:     [N_TREE]Node; # a complete tree stored in shuffled order
+pub var tree_root: i32 = 0;
+pub var items:     [N_ITEM]Item;
+pub var text:      [N_TEXT]u8; # space-separated decimal integers
 
 var rng: u64 = 0x9E3779B97F4A7C15;
 
@@ -152,5 +199,96 @@ pub fun init() {
     for (i < NEEDLE_LEN) {
         needle[i] = u8_a[NEEDLE_AT + i];
         i         = i + 1;
+    }
+
+    # everything below was added after the arrays above, and draws after them,
+    # so their contents never move
+    i = 0;
+    for (i < N_LIMB) {
+        limb_a[i] = next();
+        limb_b[i] = next();
+        i         = i + 1;
+    }
+
+    i = 0;
+    for (i < N_PART) {
+        bodies[i].x  = parts[i].x;
+        bodies[i].y  = parts[i].y;
+        bodies[i].z  = parts[i].z;
+        bodies[i].vx = parts[i].vx;
+        bodies[i].vy = parts[i].vy;
+        bodies[i].vz = parts[i].vz;
+        bodies[i].nx = 0.0;
+        bodies[i].ny = 0.0;
+        bodies[i].nz = 0.0;
+        i            = i + 1;
+    }
+
+    # a complete binary tree over logical positions, each stored at a shuffled
+    # index, so a walk follows links the prefetcher cannot predict.
+    # i64_out is the permutation scratch again
+    i = 0;
+    for (i < N_TREE) {
+        i64_out[i] = i;
+        i          = i + 1;
+    }
+    i = N_TREE - 1;
+    for (i > 0) {
+        val j: i64 = (next() % ((i + 1)::u64))::i64;
+        val t: i64 = i64_out[i];
+        i64_out[i] = i64_out[j];
+        i64_out[j] = t;
+        i          = i - 1;
+    }
+    var k: i64 = 0;
+    for (k < N_TREE) {
+        val n: i64 = i64_out[k];
+        nodes[n].left  = -1;
+        nodes[n].right = -1;
+        if (2 * k + 1 < N_TREE) { nodes[n].left = i64_out[2 * k + 1]::i32; }
+        if (2 * k + 2 < N_TREE) { nodes[n].right = i64_out[2 * k + 2]::i32; }
+        nodes[n].val = next_byte()::i32;
+        k            = k + 1;
+    }
+    tree_root = i64_out[0]::i32;
+
+    # three draws per item whatever its case, so the two sides stay in step
+    i = 0;
+    for (i < N_ITEM) {
+        val kind: u64 = next() & 3;
+        val a:    u64 = next_byte();
+        val b:    u64 = next_byte();
+        if (kind == 1) {
+            items[i] = Item.small{a::i32};
+        }
+        or (kind == 2) {
+            items[i] = Item.pair{Pair{a: a::i32, b: b::i32}};
+        }
+        or (kind == 3) {
+            items[i] = Item.wide{(a * 65536 + b)::i64};
+        }
+        or {
+            items[i] = Item.none{};
+        }
+        i = i + 1;
+    }
+
+    # decimal integers of one to six digits, each followed by a space, then
+    # spaces to the end
+    var pos: i64 = 0;
+    for (pos + 7 <= N_TEXT) {
+        val len: i64 = 1 + (next() % 6)::i64;
+        var j:   i64 = 0;
+        for (j < len) {
+            text[pos] = (48 + next() % 10)::u8;
+            pos       = pos + 1;
+            j         = j + 1;
+        }
+        text[pos] = 32;
+        pos       = pos + 1;
+    }
+    for (pos < N_TEXT) {
+        text[pos] = 32;
+        pos       = pos + 1;
     }
 }

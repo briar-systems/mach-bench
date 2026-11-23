@@ -48,9 +48,14 @@ while [ $# -gt 0 ]; do
 done
 
 # C variants are compiled at the baseline x86-64 ISA (SSE2) to match the
-# `isa` declared for the Mach target -- comparing against -march=native would
-# hand C an instruction set the Mach build is not allowed to emit.
-CFLAGS_COMMON="-std=c11 -Wall -Wextra"
+# Mach target, which names no `isa` and so builds for the baseline --
+# comparing against -march=native would hand C an instruction set the Mach
+# build is not allowed to emit.
+#
+# every function starts on a 64-byte boundary, as every kernel function does on
+# the Mach side, so where a kernel lands does not depend on the code linked
+# ahead of it.
+CFLAGS_COMMON="-std=c11 -Wall -Wextra -falign-functions=64"
 VARIANTS="O2 O3"
 flags_for() {
     case $1 in
@@ -106,8 +111,10 @@ profile_key() {
 }
 SIMD=$(profile_key simd)
 [ -n "$SIMD" ] || SIMD="?"
-REASSOC=$(profile_key float_reassoc)
-[ -n "$REASSOC" ] || REASSOC="?"
+# what the profile relaxes, as `float-reassoc`; a profile with no `relax` key
+# relaxes nothing
+RELAX=$(profile_key relax | tr -d '[]" ')
+[ -n "$RELAX" ] || RELAX="none"
 
 for v in $VARIANTS; do
     # kernels and harness stay separate translation units, and no LTO, so the
@@ -120,9 +127,9 @@ for v in $VARIANTS; do
 done
 
 ASM_FLAG=
-[ "$WANT_ASM" -eq 1 ] && ASM_FLAG=--emit-asm
-# the host target by name: out/ can also hold other targets' binaries from an
-# --all-targets build, and those do not run here
+[ "$WANT_ASM" -eq 1 ] && ASM_FLAG="--emit asm --emit exe"
+# the host target by name: out/ can also hold other targets' binaries from a
+# multi-target build, and those do not run here
 HOST=$($MACH info 2>/dev/null | awk '/^host:/ {print $2}')
 [ -n "$HOST" ] || { echo "bench.sh: '$MACH info' reported no host target" >&2; exit 1; }
 # shellcheck disable=SC2086
@@ -158,7 +165,7 @@ CC_VER=$($CC --version 2>/dev/null | head -1)
 # shellcheck disable=SC2086
 awk -v variants="$VARIANTS" -v outdir="$OUT/run" -v filter="$FILTER" \
     -v rounds="$ROUNDS" -v machver="$MACH_VER" -v ccver="$CC_VER" -v host="$HOST" \
-    -v profile="$PROFILE" -v simd="$SIMD" -v reassoc="$REASSOC" -v reps="$REPS" \
+    -v profile="$PROFILE" -v simd="$SIMD" -v relax="$RELAX" -v reps="$REPS" \
     -v check="$WANT_CHECK" '
 function human(ns,   u) {
     if (ns < 1000)    { return sprintf("%.1f ns", ns) }
@@ -202,7 +209,7 @@ BEGIN {
                 if (per > tmax[key]) tmax[key] = per
                 chk[key] = a[4] + 0
                 if (i == 1 && rd == 1) {
-                    order[++n] = a[1]; tol[a[1]] = a[5] + 0; grp[a[1]] = a[6]
+                    order[++n] = a[1]; tol[a[1]] = a[5] + 0; grp[a[1]] = a[6]; basis[a[1]] = a[7]
                 }
             }
             close(f)
@@ -216,6 +223,7 @@ BEGIN {
             if (!(a[1] in mt) || per < mt[a[1]]) mt[a[1]] = per
             if (per > mtmax[a[1]]) mtmax[a[1]] = per
             mchk[a[1]] = a[4] + 0
+            mbasis[a[1]] = a[7]
         }
         close(f)
     }
@@ -225,8 +233,16 @@ BEGIN {
     for (r = 1; r <= n; r++) if (!(order[r] in mt)) { missing = missing " " order[r]; lone++ }
     for (k in mt) if (!(k in tol)) { missing = missing " " k; lone++ }
 
+    # the basis of a row decides whether it is scored, so the two registries
+    # must agree on it and it must be one this script knows
+    for (r = 1; r <= n; r++) {
+        k = order[r]
+        if (basis[k] != "like" && basis[k] != "idiom") { badbasis = badbasis " " k; lone++ }
+        else if ((k in mbasis) && mbasis[k] != basis[k]) { badbasis = badbasis " " k; lone++ }
+    }
+
     printf "\n  mach-bench  ·  %s  ·  %s  ·  %s\n", machver, ccver, host
-    printf "  profile %s (simd=%s, float_reassoc=%s)  ·  best of %s rounds x %s reps  ·  C at baseline x86-64\n\n", profile, simd, reassoc, rounds, reps
+    printf "  profile %s (simd=%s, relax=%s)  ·  best of %s rounds x %s reps  ·  C at baseline x86-64\n\n", profile, simd, relax, rounds, reps
 
     w = 16
     line = sprintf("  %-*s", w, "kernel")
@@ -259,7 +275,9 @@ BEGIN {
         for (i = 1; i <= nv; i++) {
             ratio = mt[k] / t[vs[i], k]
             line = line sprintf("%10s", sprintf("%.2fx", ratio))
-            gsum[vs[i]] += log(ratio); gn[vs[i]]++
+            # an idiom row compares two different programs, so it is shown and
+            # subtotalled with its group but kept out of the overall geomean
+            if (basis[k] == "like") { gsum[vs[i]] += log(ratio); gn[vs[i]]++ }
             ggsum[grp[k], vs[i]] += log(ratio); ggn[grp[k], vs[i]]++
         }
 
@@ -286,7 +304,7 @@ BEGIN {
     if (prevgrp != "") subtotal(prevgrp)
 
     print "  " rule
-    line = sprintf("  %-*s", w, "geomean (all)")
+    line = sprintf("  %-*s", w, "geomean (like)")
     for (i = 1; i <= nv; i++) line = line sprintf("%11s", "")
     line = line sprintf("%11s", "")
     for (i = 1; i <= nv; i++)
@@ -295,8 +313,10 @@ BEGIN {
 
     printf "\n  ratio = mach / C  ·  lower is better  ·  1.00x is parity\n"
     printf "  chk: = bit-identical   ~ within kernel tolerance   ! disagreement\n"
+    printf "  geomean (like) covers the rows that are the same statements on both sides, not the idiom rows\n"
     if (shown == 0) printf "\n  no kernels matched filter \"%s\"\n", filter
     if (missing != "") printf "\n  WARNING: registered on one side only:%s\n", missing
+    if (badbasis != "") printf "\n  WARNING: basis unknown or different on the two sides:%s\n", badbasis
     if (bad > 0) printf "\n  WARNING: %d kernel(s) disagree beyond tolerance -- results are not comparable\n", bad
     if (noisy > 1.25)
         printf "\n  NOTE: round-to-round spread up to %.2fx (%s) -- machine was busy;\n        ratios survive interleaving but re-run idle for trustworthy absolutes\n", noisy, noisy_k
