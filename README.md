@@ -103,8 +103,9 @@ geomean.
 land on top of each other. If that row drifts far from `1.00x`, suspect the
 harness before believing any other row.
 
-`call_indirect` goes through a data-dependent function pointer so GCC does not
-devirtualise it. `branch_dispatch` and `op_dispatch` use an `if`/`else` chain on
+`call_indirect` goes through an exported table of data-dependent function
+pointers so neither GCC nor Clang devirtualises it. `branch_dispatch` and
+`op_dispatch` use an `if`/`else` chain on
 both sides because Mach has no `switch`. `call_direct`, `rec_return` and
 `result_wide` mark their callees never-inline on both sides
 (`#[inline("never")]` and `__attribute__((noinline))`), so the call is a real

@@ -370,7 +370,8 @@ static double k_hash_mix(void) {
 typedef int32_t (*step_fn)(int32_t);
 static int32_t step_add(int32_t v) { return v + 1; }
 static int32_t step_mul(int32_t v) { return v * 2; }
-static step_fn steps[2] = {step_add, step_mul};
+// non-static so Clang cannot prove the table is constant and devirtualise the call
+step_fn steps[2] = {step_add, step_mul};
 
 // indirect call through a data-dependent function pointer. neither compiler can
 // devirtualise it, so this is call overhead with inlining taken off the table

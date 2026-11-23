@@ -274,7 +274,7 @@ fun k_hash_mix() f64 {
     ret (h % 1000000007)::f64;
 }
 
-def StepFun: fun(i32) i32;
+pub def StepFun: fun(i32) i32;
 
 #[align(KERNEL_ALIGN)]
 fun step_add(v: i32) i32 {
@@ -286,7 +286,8 @@ fun step_mul(v: i32) i32 {
     ret v * 2;
 }
 
-var steps: [2]StepFun = [2]StepFun{step_add, step_mul};
+# exported mutable table so neither compiler can constant-fold the dispatch
+pub var steps: [2]StepFun = [2]StepFun{step_add, step_mul};
 
 # indirect call through a data-dependent function pointer. neither compiler can
 # devirtualise it, so this is call overhead with inlining taken off the table
