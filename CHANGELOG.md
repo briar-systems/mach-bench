@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-23
+
+### Added
+- Seventeen new kernels (`f32_stencil`, `u8_to_f32`, `u8_sum`, `bulk_copy`,
+  `bulk_fill`, `copy_short`, `limb_add`, `hash_mix`, `call_direct`,
+  `rec_return`, `rec_update`, `op_dispatch`, `parse_ints`, `tree_sum`,
+  `result_wide`, `tag_dispatch`, `vec_saxpy`), bringing the suite to 36
+  kernels (#36).
+- Per-kernel `basis` (`like` vs `idiom`) in both registries, grouping idiom
+  rows separately and keeping `geomean (like)` over statement-identical rows
+  only (#36).
+
+### Changed
+- Requires Mach 7.0.0 or later and std 10.0.0. `mach.toml` declares
+  `mach = "^7"` and `[dep.std]` declares `version = "^10.0"` pinned at
+  v10.0.0, the entry moves to `src/bin/main.mach`, `bench.sh` reads Mach 7
+  profile keys, and CI/CD pin `MACH_VERSION: 7.0.0` (#44).
+- Aligned every kernel function and helper callee to 64 bytes on both sides
+  (`#[align(64)]` in Mach, `-falign-functions=64` in C) so link placement of
+  one kernel does not shift another (#38).
+- Documented what `recurse_fib` and `tree_sum` measure under GCC's recursion
+  rewrites (#40).
+- Replaced the shared toolkit pipeline with repository-owned `ci.yml` and
+  `cd.yml` workflows and enforced LF line endings via `.gitattributes`.
+
+### Fixed
+- Grouped the `rec_particle` sum in `src/kernels.mach` to match C's
+  floating-point evaluation order (#34).
+- Exported the `steps` function-pointer table in `c/kernels.c` and
+  `src/kernels.mach` so Clang cannot devirtualize and vectorize
+  `call_indirect` (#42).
+
 ## [0.3.0] - 2026-09-26
 
 ### Changed
@@ -83,7 +115,8 @@ First release.
   binary it found first, so a tree holding an `--all-targets` build no longer
   runs a darwin binary on linux (#3).
 
-[Unreleased]: https://github.com/briar-systems/mach-bench/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/briar-systems/mach-bench/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/briar-systems/mach-bench/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/briar-systems/mach-bench/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/briar-systems/mach-bench/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/briar-systems/mach-bench/compare/v0.1.0...v0.1.1

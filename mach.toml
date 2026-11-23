@@ -1,6 +1,6 @@
 [project]
 id = "bench"
-version = "0.3.0"
+version = "0.4.0"
 mach = "^7"
 src = "src"
 work = "out/{target.name}/{profile.name}"
@@ -49,4 +49,4 @@ relax = ["float-reassoc"]
 
 [dep.std]
 git = "https://github.com/briar-systems/mach-std"
-ref = "branch/dev"
+version = "^10.0"
